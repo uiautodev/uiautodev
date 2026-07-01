@@ -6,6 +6,8 @@ UI 自动化 · 设备管理 · AI 工具箱
 
 uiautodev 是一款集 UI 自动化、设备管理和 AI 工具于一体的桌面应用，旨在提升开发和测试效率。
 
+![uiautodev](images/uiautodev.jpg)
+
 ## 下载
 
 编译后的安装包可从以下地址下载：

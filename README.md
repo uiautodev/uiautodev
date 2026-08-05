@@ -14,6 +14,10 @@ uiautodev 是一款集 UI 自动化、设备管理和 AI 工具于一体的桌�
 
 [https://get.uiauto.dev](https://get.uiauto.dev)
 
+## 文档
+
+https://www.yuque.com/codeskyblue/uiautodev
+
 ## 反馈
 
 如有问题或功能需求，请在 [Issues](https://github.com/uiautodev/uiautodev/issues) 中提交。

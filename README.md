@@ -21,3 +21,6 @@ uiautodev 是一款集 UI 自动化、设备管理和 AI 工具于一体的桌�
 ## 开源说明
 
 本项目为闭源开发，源码未托管于此仓库。但项目所依赖的多个核心库已开源，[开源地址](https://github.com/uiautodev) 欢迎关注。
+
+- [dictlog](https://github.com/uiautodev/dictlog) 结构化的python日志库，兼容标准库logging
+- [uiautoagent](https://github.com/uiautodev/uiautoagent) 使用ai控制手机完成任务

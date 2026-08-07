@@ -1,6 +1,6 @@
 {
   "name": "uiautodev",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "CLI to download and run UIAutoDev server binary",
   "type": "commonjs",
   "main": "src/index.js",
@@ -11,6 +11,9 @@
     "bin",
     "src"
   ],
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
   "scripts": {
     "test": "node --test"
   },

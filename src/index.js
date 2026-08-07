@@ -6,7 +6,7 @@ const path = require('node:path');
 const https = require('node:https');
 const { spawn } = require('node:child_process');
 
-const { parseArgs, USAGE } = require('./args');
+const { parseArgs } = require('./args');
 const { resolveBinary, describePlatform } = require('./platform');
 
 const API_BASE = 'https://download.devsleep.com';
@@ -190,7 +190,6 @@ async function run(argv) {
   const opts = parseArgs(argv);
 
   if (opts.help) {
-    console.log(USAGE);
     return;
   }
 
@@ -226,7 +225,7 @@ async function run(argv) {
     fs.chmodSync(binPath, 0o755);
   }
 
-  if (opts.installOnly) {
+  if (opts.command === 'download') {
     console.log(binPath);
     return;
   }

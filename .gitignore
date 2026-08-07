@@ -222,3 +222,6 @@ __marimo__/
 
 # npm registry auth token
 .npmrc
+
+# Node.js
+node_modules/

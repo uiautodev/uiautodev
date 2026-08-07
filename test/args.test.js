@@ -5,52 +5,94 @@ const assert = require('node:assert/strict');
 
 const { parseArgs } = require('../src/args.js');
 
-test('parses nothing into defaults', () => {
-  assert.deepEqual(parseArgs([]), {
-    version: null,
-    force: false,
-    installOnly: false,
-    help: false,
-    passthrough: [],
-  });
+test('no args defaults to run', () => {
+  const opts = parseArgs([]);
+  assert.equal(opts.command, 'run');
+  assert.deepEqual(opts.passthrough, []);
 });
 
-test('parses --help', () => {
-  assert.equal(parseArgs(['--help']).help, true);
+test('run command', () => {
+  const opts = parseArgs(['run']);
+  assert.equal(opts.command, 'run');
+  assert.deepEqual(opts.passthrough, []);
 });
 
-test('parses --force and -f', () => {
-  assert.equal(parseArgs(['--force']).force, true);
-  assert.equal(parseArgs(['-f']).force, true);
+test('run passes everything after it verbatim', () => {
+  const opts = parseArgs(['run', '-addr', ':9000', '--verbose']);
+  assert.equal(opts.command, 'run');
+  assert.deepEqual(opts.passthrough, ['-addr', ':9000', '--verbose']);
 });
 
-test('parses --install-only', () => {
-  assert.equal(parseArgs(['--install-only']).installOnly, true);
+test('global flags before run plus passthrough', () => {
+  const opts = parseArgs(['--version', '0.6.0', '--force', 'run', '-addr', ':9000']);
+  assert.equal(opts.version, '0.6.0');
+  assert.equal(opts.force, true);
+  assert.equal(opts.command, 'run');
+  assert.deepEqual(opts.passthrough, ['-addr', ':9000']);
 });
 
-test('parses --version <v>', () => {
-  const opts = parseArgs(['--version', '0.6.0']);
+test('--version=... form', () => {
+  const opts = parseArgs(['--version=0.6.0', 'run']);
   assert.equal(opts.version, '0.6.0');
 });
 
-test('parses --version=<v>', () => {
-  const opts = parseArgs(['--version=0.6.0']);
+test('download command', () => {
+  const opts = parseArgs(['download']);
+  assert.equal(opts.command, 'download');
+});
+
+test('download accepts global flags after it', () => {
+  const opts = parseArgs(['download', '--force', '--version', '0.6.0']);
+  assert.equal(opts.command, 'download');
+  assert.equal(opts.force, true);
   assert.equal(opts.version, '0.6.0');
+});
+
+test('global flags before download', () => {
+  const opts = parseArgs(['--force', 'download']);
+  assert.equal(opts.command, 'download');
+  assert.equal(opts.force, true);
+});
+
+test('--help flag sets help', () => {
+  const opts = parseArgs(['--help']);
+  assert.equal(opts.help, true);
+});
+
+test('-h flag sets help', () => {
+  const opts = parseArgs(['-h']);
+  assert.equal(opts.help, true);
+});
+
+test('help command sets help', () => {
+  const opts = parseArgs(['help']);
+  assert.equal(opts.help, true);
+});
+
+test('flags before subcommand are parsed, not passed through', () => {
+  const opts = parseArgs(['--force', 'run', '--port', '1']);
+  assert.equal(opts.force, true);
+  assert.deepEqual(opts.passthrough, ['--port', '1']);
+});
+
+test('defined global flag after run is passed through, not consumed', () => {
+  const opts = parseArgs(['run', '--force']);
+  assert.equal(opts.force, false);
+  assert.deepEqual(opts.passthrough, ['--force']);
+});
+
+test('bare args without subcommand default to run passthrough', () => {
+  const opts = parseArgs(['-addr', ':9000']);
+  assert.equal(opts.command, 'run');
+  assert.deepEqual(opts.passthrough, ['-addr', ':9000']);
+});
+
+test('unknown bare word defaults to run passthrough', () => {
+  const opts = parseArgs(['foo']);
+  assert.equal(opts.command, 'run');
+  assert.deepEqual(opts.passthrough, ['foo']);
 });
 
 test('throws when --version has no value', () => {
   assert.throws(() => parseArgs(['--version']));
-});
-
-test('everything after -- goes to passthrough untouched', () => {
-  const opts = parseArgs(['--force', '--', '--version', 'x', '--port', '9000']);
-  assert.equal(opts.force, true);
-  assert.equal(opts.version, null);
-  assert.deepEqual(opts.passthrough, ['--version', 'x', '--port', '9000']);
-});
-
-test('non-cli args before -- are passthrough too', () => {
-  const opts = parseArgs(['--port', '9000', '--force']);
-  assert.deepEqual(opts.passthrough, ['--port', '9000']);
-  assert.equal(opts.force, true);
 });

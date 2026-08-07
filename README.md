@@ -16,21 +16,22 @@ npx uiautodev
 
 ## CLI
 
-| 参数 | 说明 |
+| 命令 / 参数 | 说明 |
 |---|---|
+| `run` | 下载（如需）并运行服务端二进制（默认命令），之后参数原样透传 |
+| `download` | 仅下载，打印二进制路径 |
 | `--version <v>` | 指定版本（默认最新） |
 | `--force` | 忽略缓存，强制重新下载 |
-| `--install-only` | 只下载，打印二进制路径 |
 | `--help` | 显示帮助 |
-| `-- <args>` | 分隔符，之后参数原样透传给服务端 |
 
 二进制缓存于 `~/.cache/uiautodev/<version>/`，可用环境变量 `UIAUTODEV_CACHE_DIR` 覆盖。
 
 ```bash
-npx uiautodev -- -addr :8000    # 透传参数给服务端（监听 :8000）
-npx uiautodev --version 0.6.0   # 指定版本
-npx uiautodev --install-only    # 只下载，打印二进制路径
-npx uiautodev --force           # 忽略缓存，强制重新下载
+npx uiautodev                       # 下载最新版服务端并运行
+npx uiautodev run -addr :8000       # 运行并透传参数（监听 :8000）
+npx uiautodev --version 0.6.0 run   # 指定版本
+npx uiautodev download              # 仅下载，打印二进制路径
+npx uiautodev download --force      # 强制重新下载
 ```
 
 ## 下载

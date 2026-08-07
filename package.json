@@ -1,0 +1,31 @@
+{
+  "name": "uiautodev",
+  "version": "0.2.0",
+  "description": "CLI to download and run UIAutoDev server binary",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "bin": {
+    "uiautodev": "bin/uiautodev.js"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "keywords": [
+    "uiautodev",
+    "uiauto",
+    "automation",
+    "device"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uiautodev/uiautodev.git"
+  }
+}

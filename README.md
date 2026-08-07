@@ -1,12 +1,37 @@
-# uiautodev
-
-UI 自动化 · 设备管理 · AI 工具箱
-
 ## 简介
 
 uiautodev 是一款集 UI 自动化、设备管理和 AI 工具于一体的桌面应用，旨在提升开发和测试效率。
 
 ![uiautodev](images/uiautodev.jpg)
+
+## 快速开始
+
+无需安装，复制下面的命令即可运行（首次会自动下载对应平台的服务端二进制）：
+
+```bash
+npx uiautodev
+```
+
+启动后服务端默认监听 `http://127.0.0.1:33299`。
+
+## CLI
+
+| 参数 | 说明 |
+|---|---|
+| `--version <v>` | 指定版本（默认最新） |
+| `--force` | 忽略缓存，强制重新下载 |
+| `--install-only` | 只下载，打印二进制路径 |
+| `--help` | 显示帮助 |
+| `-- <args>` | 分隔符，之后参数原样透传给服务端 |
+
+二进制缓存于 `~/.cache/uiautodev/<version>/`，可用环境变量 `UIAUTODEV_CACHE_DIR` 覆盖。
+
+```bash
+npx uiautodev -- -addr :8000    # 透传参数给服务端（监听 :8000）
+npx uiautodev --version 0.6.0   # 指定版本
+npx uiautodev --install-only    # 只下载，打印二进制路径
+npx uiautodev --force           # 忽略缓存，强制重新下载
+```
 
 ## 下载
 

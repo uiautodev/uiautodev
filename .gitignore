@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# png is large
+*.png
+
+# npm registry auth token
+.npmrc

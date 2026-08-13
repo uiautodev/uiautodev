@@ -1,6 +1,6 @@
 {
   "name": "uiautodev",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "CLI to download and run UIAutoDev server binary",
   "type": "commonjs",
   "main": "src/index.js",

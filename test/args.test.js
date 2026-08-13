@@ -23,6 +23,20 @@ test('run passes everything after it verbatim', () => {
   assert.deepEqual(opts.passthrough, ['-addr', ':9000', '--verbose']);
 });
 
+test('run -h is passed through to the binary', () => {
+  const opts = parseArgs(['run', '-h']);
+  assert.equal(opts.command, 'run');
+  assert.equal(opts.help, false);
+  assert.deepEqual(opts.passthrough, ['-h']);
+});
+
+test('run --help is passed through to the binary', () => {
+  const opts = parseArgs(['run', '--help']);
+  assert.equal(opts.command, 'run');
+  assert.equal(opts.help, false);
+  assert.deepEqual(opts.passthrough, ['--help']);
+});
+
 test('global flags before run plus passthrough', () => {
   const opts = parseArgs(['--version', '0.6.0', '--force', 'run', '-addr', ':9000']);
   assert.equal(opts.version, '0.6.0');

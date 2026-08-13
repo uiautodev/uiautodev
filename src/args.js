@@ -23,6 +23,7 @@ function parseArgs(argv) {
 
   program
     .command('run')
+    .helpOption(false)
     .description('Download (if needed) and run the server binary (default)')
     .argument('[args...]', 'arguments passed to the server binary')
     .passThroughOptions()

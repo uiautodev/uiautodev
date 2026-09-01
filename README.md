@@ -1,65 +1,85 @@
-## 简介
+> **中文文档：** [README_CN.md](README_CN.md)
+
+## Introduction
 
 [![npm version](https://img.shields.io/npm/v/uiautodev.svg)](https://www.npmjs.com/package/uiautodev)
 
-uiautodev 是专注于**移动端控制、自动化与远程真机**的工具，提供桌面应用与服务端两种形态，支持 Android、iOS、鸿蒙（HarmonyOS），帮助开发和测试高效完成设备管理与 UI 自动化。
+uiautodev is a tool focused on **mobile device control, automation, and remote real devices**. It comes in two forms: a desktop app and a server. It supports Android, iOS, and HarmonyOS, helping developers and testers efficiently handle device management and UI automation.
 
 ![uiautodev](images/uiautodev.jpg)
 
-## 快速开始
+## Quick Start
 
-无需安装，复制下面的命令即可运行（首次会自动下载对应平台的服务端二进制）：
+No installation required. Copy and run the command below (it will automatically download the server binary for your platform on first run):
 
 ```bash
 npx uiautodev
 ```
 
-启动后服务端默认监听 `http://127.0.0.1:33299`。
+After startup, the server listens on `http://127.0.0.1:33299` by default.
 
 ## CLI
 
-| 命令 / 参数 | 说明 |
+| Command / Flag | Description |
 |---|---|
-| `run` | 下载（如需）并运行服务端二进制（默认命令），之后参数原样透传 |
-| `download` | 仅下载，打印二进制路径 |
-| `path` | 只打印二进制路径，不下载 |
-| `--version <v>` | 指定版本（默认最新） |
-| `--force` | 忽略缓存，强制重新下载 |
-| `--debug` | 输出调试日志（等价于 `DEBUG=uiautodev:*`，如下载统计 POST 的请求与响应） |
-| `--help` | 显示帮助 |
+| `run` | Download (if needed) and run the server binary (default command); extra args are passed through as-is |
+| `download` | Only download; print the binary path |
+| `path` | Only print the binary path; do not download |
+| `--version <v>` | Specify a version (default: latest) |
+| `--force` | Ignore cache and force re-download |
+| `--debug` | Output debug logs (equivalent to `DEBUG=uiautodev:*`, e.g. request/response for download stats POST) |
+| `--help` | Show help |
 
-二进制缓存于 `~/.cache/uiautodev/<version>/`，可用环境变量 `UIAUTODEV_CACHE_DIR` 覆盖。
+The binary is cached at `~/.cache/uiautodev/<version>/`. Override with the `UIAUTODEV_CACHE_DIR` environment variable.
 
 ```bash
-npx uiautodev                       # 下载最新版服务端并运行
-npx uiautodev run -addr :8000       # 运行并透传参数（监听 :8000）
-npx uiautodev --version 0.6.0 run   # 指定版本
-npx uiautodev download              # 仅下载，打印二进制路径
-npx uiautodev download --force      # 强制重新下载
-npx uiautodev path                  # 只打印二进制路径，不下载
-npx uiautodev --debug download      # 调试模式：查看下载统计 POST 的请求与响应
-DEBUG=uiautodev:* npx uiautodev download   # 同上，用环境变量开启调试日志
+npx uiautodev                       # download the latest server and run it
+npx uiautodev run -addr :8000       # run and pass through args (listen on :8000)
+npx uiautodev --version 0.6.0 run   # specify a version
+npx uiautodev download              # only download; print the binary path
+npx uiautodev download --force      # force re-download
+npx uiautodev path                  # only print the binary path; do not download
+npx uiautodev --debug download      # debug mode: view request/response for download stats POST
+DEBUG=uiautodev:* npx uiautodev download   # same as above, enable debug logging via env var
 ```
 
-> 注：`run` 会把子命令后的参数原样透传给服务端二进制，因此 `--debug`/`--force` 等全局选项需放在子命令之前（如 `npx uiautodev --debug run`）。
+> Note: `run` passes all arguments after the subcommand through to the server binary as-is, so global options like `--debug` and `--force` must be placed before the subcommand (e.g. `npx uiautodev --debug run`).
 
-## 下载
+## Download
 
-编译后的安装包可从以下地址下载：
+Prebuilt packages can be downloaded from:
 
 [https://get.uiauto.dev](https://get.uiauto.dev)
 
-## 文档
+## Agent Skill: device-control
+
+This project provides the `device-control` skill, which lets AI control mobile device UIs through the uiautodev MCP (tap / screenshot / swipe / input text / press keys, etc.). Install it with the [skills.sh](https://skills.sh) CLI:
+
+```bash
+npx skills add uiautodev/uiautodev --skill device-control
+```
+
+Common options:
+
+| Option | Description |
+|---|---|
+| `-g` | Install globally (`~/.claude/skills/`, `~/.agents/skills/`, etc.) |
+| `-a <agent>` | Install only for specific agents, e.g. `-a claude-code`, `-a opencode` |
+| `-y` | Skip interactive prompts; suitable for CI |
+
+Once installed, configure the uiautodev MCP server in your agent, and the model can automatically trigger the skill to operate real devices.
+
+## Documentation
 
 https://www.yuque.com/codeskyblue/uiautodev
 
-## 反馈
+## Feedback
 
-如有问题或功能需求，请在 [Issues](https://github.com/uiautodev/uiautodev/issues) 中提交。
+For issues or feature requests, please file them in [Issues](https://github.com/uiautodev/uiautodev/issues).
 
-## 开源说明
+## Open Source
 
-本项目为闭源开发，源码未托管于此仓库。但项目所依赖的多个核心库已开源，[开源地址](https://github.com/uiautodev) 欢迎关注。
+This project is developed in a closed-source manner, and the source code is not hosted in this repository. However, several core libraries the project depends on are open source. See [here](https://github.com/uiautodev) for more.
 
-- [dictlog](https://github.com/uiautodev/dictlog) 结构化的python日志库，兼容标准库logging
-- [uiautoagent](https://github.com/uiautodev/uiautoagent) 使用ai控制手机完成任务
+- [dictlog](https://github.com/uiautodev/dictlog) A structured Python logging library, compatible with the standard `logging` module
+- [uiautoagent](https://github.com/uiautodev/uiautoagent) Use AI to control your phone to complete tasks

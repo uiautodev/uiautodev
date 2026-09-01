@@ -5,7 +5,7 @@ description: "通过 uiautodev MCP 控制移动设备（Android/iOS）的 UI。�
 
 # 设备 UI 控制（uiautodev MCP）
 
-用 uiautodev MCP 控制真机。**唯一的信息源是截图，唯一的操作是 tap/swipe/input_text/press_key。**
+用 uiautodev MCP 控制真机。**首选的信息源是截图；核心交互操作是 tap/swipe/input_text/press_key（dump_xml 仅作辅助）。**
 
 ## 工具速览
 

@@ -42,6 +42,25 @@ async function getJson(url) {
   return JSON.parse(body);
 }
 
+function downloadStatUrl(version, fileName) {
+  return `${API_BASE}/api/versions/${encodeURIComponent(
+    version
+  )}/files/${encodeURIComponent(fileName)}/downloads`;
+}
+
+function postDownloadStat(version, fileName) {
+  const url = downloadStatUrl(version, fileName);
+  const req = https.request(
+    url,
+    { method: 'POST', headers: REQUEST_HEADERS },
+    (res) => res.resume()
+  );
+  req.on('socket', (socket) => socket.unref());
+  req.setTimeout(2000, () => req.destroy());
+  req.on('error', () => {});
+  req.end();
+}
+
 async function getLatestVersion() {
   const data = await getJson(`${API_BASE}/api/versions`);
   if (!Array.isArray(data.versions) || data.versions.length === 0) {
@@ -219,6 +238,7 @@ async function run(argv) {
       `Downloading ${binary.name} (${formatBytes(binary.size)})...\n`
     );
     await downloadTo(binary.download_url, binPath, binary.size);
+    postDownloadStat(version, binary.name);
   }
 
   if (process.platform !== 'win32') {
@@ -254,6 +274,8 @@ module.exports = {
   getVersionFiles,
   getCacheDir,
   downloadTo,
+  downloadStatUrl,
+  postDownloadStat,
   formatBytes,
   API_BASE,
   DOWNLOAD_BASE,

@@ -74,5 +74,5 @@ https://www.yuque.com/codeskyblue/uiautodev
 
 本项目为闭源开发，源码未托管于此仓库。但项目所依赖的多个核心库已开源，[开源地址](https://github.com/uiautodev) 欢迎关注。
 
-- [dictlog](https://github.com/uiautodev/dictlog) 结构化的python日志库，兼容标准库logging
-- [uiautoagent](https://github.com/uiautodev/uiautoagent) 使用ai控制手机完成任务
+- [dictlog](https://github.com/uiautodev/dictlog) 结构化的 Python 日志库，兼容标准库 `logging`
+- [uiautoagent](https://github.com/uiautodev/uiautoagent) 使用 AI 控制手机完成任务

@@ -8,7 +8,7 @@ const { spawn } = require('node:child_process');
 
 const { parseArgs } = require('./args');
 const { resolveBinary, describePlatform } = require('./platform');
-const { createLogger, enableDebug } = require('./log');
+const { createLogger, enableDebug, isDebugEnabled } = require('./log');
 
 const mainLog = createLogger('main');
 const postLog = createLogger('post');

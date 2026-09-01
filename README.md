@@ -22,8 +22,10 @@ npx uiautodev
 |---|---|
 | `run` | 下载（如需）并运行服务端二进制（默认命令），之后参数原样透传 |
 | `download` | 仅下载，打印二进制路径 |
+| `path` | 只打印二进制路径，不下载 |
 | `--version <v>` | 指定版本（默认最新） |
 | `--force` | 忽略缓存，强制重新下载 |
+| `--debug` | 输出调试日志（等价于 `DEBUG=uiautodev:*`，如下载统计 POST 的请求与响应） |
 | `--help` | 显示帮助 |
 
 二进制缓存于 `~/.cache/uiautodev/<version>/`，可用环境变量 `UIAUTODEV_CACHE_DIR` 覆盖。
@@ -34,7 +36,12 @@ npx uiautodev run -addr :8000       # 运行并透传参数（监听 :8000）
 npx uiautodev --version 0.6.0 run   # 指定版本
 npx uiautodev download              # 仅下载，打印二进制路径
 npx uiautodev download --force      # 强制重新下载
+npx uiautodev path                  # 只打印二进制路径，不下载
+npx uiautodev --debug download      # 调试模式：查看下载统计 POST 的请求与响应
+DEBUG=uiautodev:* npx uiautodev download   # 同上，用环境变量开启调试日志
 ```
+
+> 注：`run` 会把子命令后的参数原样透传给服务端二进制，因此 `--debug`/`--force` 等全局选项需放在子命令之前（如 `npx uiautodev --debug run`）。
 
 ## 下载
 

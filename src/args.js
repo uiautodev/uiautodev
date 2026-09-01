@@ -7,6 +7,7 @@ function parseArgs(argv) {
     command: 'run',
     version: null,
     force: false,
+    debug: false,
     help: false,
     passthrough: [],
   };
@@ -17,9 +18,11 @@ function parseArgs(argv) {
     .description('Download the UIAutoDev server binary and run it.')
     .option('--version <v>', 'Use a specific version (default: latest)')
     .option('-f, --force', 'Force re-download even if cached')
+    .option('--debug', 'Enable debug output')
     .argument('[args...]', 'arguments passed to the server binary')
     .allowUnknownOption(true)
-    .enablePositionalOptions();
+    .enablePositionalOptions()
+    .exitOverride();
 
   program
     .command('run')
@@ -37,10 +40,19 @@ function parseArgs(argv) {
     .description('Download the server binary only and print its path')
     .option('--version <v>', 'Use a specific version (default: latest)')
     .option('-f, --force', 'Force re-download even if cached')
+    .option('--debug', 'Enable debug output')
     .action((opts) => {
       result.command = 'download';
       result.force = result.force || Boolean(opts.force);
       result.version = result.version || opts.version || null;
+      result.debug = result.debug || Boolean(opts.debug);
+    });
+
+  program
+    .command('path')
+    .description('Print the path to the server binary without downloading')
+    .action(() => {
+      result.command = 'path';
     });
 
   program
@@ -56,10 +68,9 @@ function parseArgs(argv) {
 
   program.addHelpText(
     'beforeAll',
-    'Examples:\n  uiautodev run -addr :9000\n  uiautodev download\n'
+    'Examples:\n  uiautodev run -addr :9000\n  uiautodev download\n  uiautodev path\n'
   );
   program.showHelpAfterError();
-  program.exitOverride();
 
   try {
     program.parse(argv, { from: 'user' });
@@ -73,6 +84,7 @@ function parseArgs(argv) {
 
   result.version = result.version || program.opts().version || null;
   result.force = result.force || Boolean(program.opts().force);
+  result.debug = result.debug || Boolean(program.opts().debug);
 
   return result;
 }

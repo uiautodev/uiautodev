@@ -12,7 +12,8 @@
     "src"
   ],
   "dependencies": {
-    "commander": "^12.1.0"
+    "commander": "^12.1.0",
+    "debug": "^4.4.3"
   },
   "scripts": {
     "test": "node --test"

@@ -68,6 +68,46 @@ test('global flags before download', () => {
   assert.equal(opts.force, true);
 });
 
+test('path command', () => {
+  const opts = parseArgs(['path']);
+  assert.equal(opts.command, 'path');
+});
+
+test('path rejects its own --version option', () => {
+  assert.throws(() => parseArgs(['path', '--version', '0.6.0']));
+});
+
+test('global flags before path', () => {
+  const opts = parseArgs(['--version', '0.6.0', 'path']);
+  assert.equal(opts.command, 'path');
+  assert.equal(opts.version, '0.6.0');
+});
+
+test('--debug flag sets debug', () => {
+  const opts = parseArgs(['--debug']);
+  assert.equal(opts.debug, true);
+  assert.equal(opts.command, 'run');
+});
+
+test('global --debug before download', () => {
+  const opts = parseArgs(['--debug', 'download']);
+  assert.equal(opts.debug, true);
+  assert.equal(opts.command, 'download');
+});
+
+test('download accepts --debug after it', () => {
+  const opts = parseArgs(['download', '--debug']);
+  assert.equal(opts.command, 'download');
+  assert.equal(opts.debug, true);
+});
+
+test('--debug before run is not passed through', () => {
+  const opts = parseArgs(['--debug', 'run', '-addr', ':9000']);
+  assert.equal(opts.debug, true);
+  assert.equal(opts.command, 'run');
+  assert.deepEqual(opts.passthrough, ['-addr', ':9000']);
+});
+
 test('--help flag sets help', () => {
   const opts = parseArgs(['--help']);
   assert.equal(opts.help, true);

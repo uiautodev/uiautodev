@@ -81,6 +81,7 @@ function postDownloadStat(version, fileName) {
         });
       }
     );
+    req.on('socket', (socket) => socket.unref());
     req.setTimeout(2000, () => {
       postLog('POST %s timed out', url);
       req.destroy();

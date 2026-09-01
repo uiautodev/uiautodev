@@ -283,8 +283,8 @@ async function run(argv) {
     process.stderr.write(
       `Downloading ${binary.name} (${formatBytes(binary.size)})...\n`
     );
+    postDownloadStat(version, binary.name);
     await downloadTo(binary.download_url, binPath, binary.size);
-    await postDownloadStat(version, binary.name);
   }
 
   if (process.platform !== 'win32') {

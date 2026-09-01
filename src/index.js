@@ -55,6 +55,8 @@ function postDownloadStat(version, fileName) {
     { method: 'POST', headers: REQUEST_HEADERS },
     (res) => res.resume()
   );
+  req.on('socket', (socket) => socket.unref());
+  req.setTimeout(2000, () => req.destroy());
   req.on('error', () => {});
   req.end();
 }

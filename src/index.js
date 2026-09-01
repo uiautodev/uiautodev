@@ -8,6 +8,10 @@ const { spawn } = require('node:child_process');
 
 const { parseArgs } = require('./args');
 const { resolveBinary, describePlatform } = require('./platform');
+const { createLogger, enableDebug, isDebugEnabled } = require('./log');
+
+const mainLog = createLogger('main');
+const postLog = createLogger('post');
 
 const API_BASE = 'https://download.devsleep.com';
 const DOWNLOAD_BASE = 'https://dl.uiauto.dev';
@@ -50,15 +54,45 @@ function downloadStatUrl(version, fileName) {
 
 function postDownloadStat(version, fileName) {
   const url = downloadStatUrl(version, fileName);
-  const req = https.request(
-    url,
-    { method: 'POST', headers: REQUEST_HEADERS },
-    (res) => res.resume()
-  );
-  req.on('socket', (socket) => socket.unref());
-  req.setTimeout(2000, () => req.destroy());
-  req.on('error', () => {});
-  req.end();
+  postLog('POST %s', url);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+    const req = https.request(
+      url,
+      { method: 'POST', headers: REQUEST_HEADERS },
+      (res) => {
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => {
+          const body = Buffer.concat(chunks).toString('utf8');
+          postLog(
+            'POST %s -> %s%s',
+            url,
+            res.statusCode,
+            body ? ` ${body}` : ''
+          );
+          finish();
+        });
+      }
+    );
+    req.on('socket', (socket) => socket.unref());
+    req.setTimeout(2000, () => {
+      postLog('POST %s timed out', url);
+      req.destroy();
+      finish();
+    });
+    req.on('error', (err) => {
+      postLog('POST %s error: %s', url, err.message);
+      finish();
+    });
+    req.end();
+  });
 }
 
 async function getLatestVersion() {
@@ -208,6 +242,10 @@ function formatBytes(n) {
 async function run(argv) {
   const opts = parseArgs(argv);
 
+  if (opts.debug) {
+    enableDebug();
+  }
+
   if (opts.help) {
     return;
   }
@@ -230,15 +268,23 @@ async function run(argv) {
   }
 
   const dir = getCacheDir(version);
-  fs.mkdirSync(dir, { recursive: true });
   const binPath = path.join(dir, binary.name);
+
+  mainLog('resolved version=%s binary=%s', version, binary.name);
+
+  if (opts.command === 'path') {
+    console.log(binPath);
+    return;
+  }
+
+  fs.mkdirSync(dir, { recursive: true });
 
   if (opts.force || !fs.existsSync(binPath)) {
     process.stderr.write(
       `Downloading ${binary.name} (${formatBytes(binary.size)})...\n`
     );
     await downloadTo(binary.download_url, binPath, binary.size);
-    postDownloadStat(version, binary.name);
+    await postDownloadStat(version, binary.name);
   }
 
   if (process.platform !== 'win32') {

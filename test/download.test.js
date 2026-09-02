@@ -5,7 +5,9 @@ const assert = require('node:assert/strict');
 const os = require('node:os');
 const path = require('node:path');
 
-const { getCacheDir, formatBytes, downloadStatUrl } = require('../src/index.js');
+const { getCacheDir } = require('../src/cache.js');
+const { formatBytes } = require('../src/download.js');
+const { downloadStatUrl } = require('../src/api.js');
 
 test('getCacheDir defaults to ~/.cache/uiautodev/{version}', () => {
   assert.equal(

@@ -63,3 +63,7 @@ For issues or feature requests, please file them in [Issues](https://github.com/
 
 - [dictlog](https://github.com/uiautodev/dictlog) A structured Python logging library, compatible with the standard `logging` module
 - [uiautoagent](https://github.com/uiautodev/uiautoagent) Use AI to control your phone to complete tasks
+
+## License
+
+Released under the [MIT License](LICENSE).

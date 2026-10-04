@@ -56,3 +56,7 @@ https://www.yuque.com/codeskyblue/uiautodev
 
 - [dictlog](https://github.com/uiautodev/dictlog) 结构化的 Python 日志库，兼容标准库 `logging`
 - [uiautoagent](https://github.com/uiautodev/uiautoagent) 使用 AI 控制手机完成任务
+
+## 许可证
+
+基于 [MIT License](LICENSE) 发布。

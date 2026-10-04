@@ -44,24 +44,6 @@ npx uiautodev download --force      # 强制重新下载
 
 [https://get.uiauto.dev](https://get.uiauto.dev)
 
-## Agent Skill：device-control
-
-本项目提供 `device-control` skill，让 AI 通过 uiautodev MCP 控制移动设备 UI（点击 / 截图 / 滑动 / 输入文字 / 按键等）。使用 [skills.sh](https://skills.sh) CLI 安装：
-
-```bash
-npx skills add uiautodev/uiautodev --skill device-control
-```
-
-常用参数：
-
-| 参数 | 说明 |
-|---|---|
-| `-g` | 全局安装（`~/.claude/skills/`、`~/.agents/skills/` 等） |
-| `-a <agent>` | 只装到指定客户端，如 `-a claude-code`、`-a opencode` |
-| `-y` | 跳过交互确认，适合 CI |
-
-安装后在 agent 中配置好 uiautodev MCP server，即可让模型自动触发该 skill 完成真机操作。
-
 ## 文档
 
 https://www.yuque.com/codeskyblue/uiautodev
@@ -70,9 +52,7 @@ https://www.yuque.com/codeskyblue/uiautodev
 
 如有问题或功能需求，请在 [Issues](https://github.com/uiautodev/uiautodev/issues) 中提交。
 
-## 开源说明
-
-本项目为闭源开发，源码未托管于此仓库。但项目所依赖的多个核心库已开源，[开源地址](https://github.com/uiautodev) 欢迎关注。
+## 相关项目
 
 - [dictlog](https://github.com/uiautodev/dictlog) 结构化的 Python 日志库，兼容标准库 `logging`
 - [uiautoagent](https://github.com/uiautodev/uiautoagent) 使用 AI 控制手机完成任务

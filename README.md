@@ -51,24 +51,6 @@ Prebuilt packages can be downloaded from:
 
 [https://get.uiauto.dev](https://get.uiauto.dev)
 
-## Agent Skill: device-control
-
-This project provides the `device-control` skill, which lets AI control mobile device UIs through the uiautodev MCP (tap / screenshot / swipe / input text / press keys, etc.). Install it with the [skills.sh](https://skills.sh) CLI:
-
-```bash
-npx skills add uiautodev/uiautodev --skill device-control
-```
-
-Common options:
-
-| Option | Description |
-|---|---|
-| `-g` | Install globally (`~/.claude/skills/`, `~/.agents/skills/`, etc.) |
-| `-a <agent>` | Install only for specific agents, e.g. `-a claude-code`, `-a opencode` |
-| `-y` | Skip interactive prompts; suitable for CI |
-
-Once installed, configure the uiautodev MCP server in your agent, and the model can automatically trigger the skill to operate real devices.
-
 ## Documentation
 
 https://www.yuque.com/codeskyblue/uiautodev
@@ -77,9 +59,7 @@ https://www.yuque.com/codeskyblue/uiautodev
 
 For issues or feature requests, please file them in [Issues](https://github.com/uiautodev/uiautodev/issues).
 
-## Open Source
-
-This project is developed in a closed-source manner, and the source code is not hosted in this repository. However, several core libraries the project depends on are open source. See [here](https://github.com/uiautodev) for more.
+## Related Projects
 
 - [dictlog](https://github.com/uiautodev/dictlog) A structured Python logging library, compatible with the standard `logging` module
 - [uiautoagent](https://github.com/uiautodev/uiautoagent) Use AI to control your phone to complete tasks

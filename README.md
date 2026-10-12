@@ -25,6 +25,7 @@ After startup, the server listens on `http://127.0.0.1:33299` by default.
 | `run` | Download (if needed) and run the server binary (default command); extra args are passed through as-is |
 | `download` | Only download; print the binary path |
 | `path` | Only print the binary path; do not download |
+| `create <name>` | Create a new plugin project from a template (prompts for the template; use `-t, --template <t>` to skip, `-f, --force` to overwrite an existing directory) |
 | `--version <v>` | Specify a version (default: latest) |
 | `--force` | Ignore cache and force re-download |
 | `--debug` | Output debug logs (equivalent to `DEBUG=uiautodev:*`, e.g. request/response for download stats POST) |
@@ -39,6 +40,9 @@ npx uiautodev --version 0.6.0 run   # specify a version
 npx uiautodev download              # only download; print the binary path
 npx uiautodev download --force      # force re-download
 npx uiautodev path                  # only print the binary path; do not download
+npx uiautodev create my-plugin      # scaffold a plugin project from a template
+npx uiautodev create my-plugin -t preact              # pick a template explicitly
+npx uiautodev create my-plugin -t preact --force      # overwrite an existing directory
 npx uiautodev --debug download      # debug mode: view request/response for download stats POST
 DEBUG=uiautodev:* npx uiautodev download   # same as above, enable debug logging via env var
 ```

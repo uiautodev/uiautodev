@@ -81,10 +81,6 @@ function parseArgs(argv) {
     result.passthrough = args;
   });
 
-  program.addHelpText(
-    'beforeAll',
-    'Examples:\n  uiautodev run -addr :9000\n  uiautodev download\n  uiautodev path\n  uiautodev create my-plugin\n'
-  );
   program.showHelpAfterError();
 
   try {

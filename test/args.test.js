@@ -150,3 +150,38 @@ test('unknown bare word defaults to run passthrough', () => {
 test('throws when --version has no value', () => {
   assert.throws(() => parseArgs(['--version']));
 });
+
+test('create command', () => {
+  const opts = parseArgs(['create', 'my-plugin']);
+  assert.equal(opts.command, 'create');
+  assert.equal(opts.name, 'my-plugin');
+  assert.equal(opts.template, null);
+});
+
+test('create accepts --template', () => {
+  const opts = parseArgs(['create', 'my-plugin', '--template', 'preact']);
+  assert.equal(opts.command, 'create');
+  assert.equal(opts.name, 'my-plugin');
+  assert.equal(opts.template, 'preact');
+});
+
+test('create accepts -t shorthand', () => {
+  const opts = parseArgs(['create', 'my-plugin', '-t', 'preact']);
+  assert.equal(opts.template, 'preact');
+});
+
+test('create accepts global --force before it', () => {
+  const opts = parseArgs(['--force', 'create', 'my-plugin']);
+  assert.equal(opts.command, 'create');
+  assert.equal(opts.force, true);
+});
+
+test('create accepts --force after it', () => {
+  const opts = parseArgs(['create', 'my-plugin', '--force']);
+  assert.equal(opts.command, 'create');
+  assert.equal(opts.force, true);
+});
+
+test('create requires a name', () => {
+  assert.throws(() => parseArgs(['create']));
+});

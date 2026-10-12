@@ -9,6 +9,8 @@ function parseArgs(argv) {
     force: false,
     debug: false,
     help: false,
+    name: null,
+    template: null,
     passthrough: [],
   };
 
@@ -56,6 +58,19 @@ function parseArgs(argv) {
     });
 
   program
+    .command('create')
+    .description('Create a new plugin project from a template')
+    .argument('<name>', 'directory name of the new project')
+    .option('-t, --template <name>', 'template to use (skip the prompt)')
+    .option('-f, --force', 'overwrite the target directory if it exists')
+    .action((name, opts) => {
+      result.command = 'create';
+      result.name = name;
+      result.template = opts.template || null;
+      result.force = result.force || Boolean(opts.force);
+    });
+
+  program
     .command('help')
     .description('Show help')
     .action(() => {
@@ -68,7 +83,7 @@ function parseArgs(argv) {
 
   program.addHelpText(
     'beforeAll',
-    'Examples:\n  uiautodev run -addr :9000\n  uiautodev download\n  uiautodev path\n'
+    'Examples:\n  uiautodev run -addr :9000\n  uiautodev download\n  uiautodev path\n  uiautodev create my-plugin\n'
   );
   program.showHelpAfterError();
 

@@ -25,7 +25,7 @@ npx uiautodev
 | `run` | 下载（如需）并运行服务端二进制（默认命令），之后参数原样透传 |
 | `download` | 仅下载，打印二进制路径 |
 | `path` | 仅打印二进制路径，不下载 |
-| `create <name>` | 从模板创建新的插件项目（会提示选择模板；用 `-t, --template <t>` 跳过选择，`-f, --force` 覆盖已存在的目录） |
+| `create <name>` | 从模板创建新的插件项目（会提示选择模板；用 `-t, --template <t>` 跳过选择，`-f, --force` 替换（清空并重新生成）已存在的目录） |
 | `--version <v>` | 指定版本（默认最新） |
 | `--force` | 忽略缓存，强制重新下载 |
 | `--help` | 显示帮助 |
@@ -40,7 +40,7 @@ npx uiautodev download              # 仅下载，打印二进制路径
 npx uiautodev download --force      # 强制重新下载
 npx uiautodev create my-plugin      # 从模板创建插件项目
 npx uiautodev create my-plugin -t preact           # 指定模板
-npx uiautodev create my-plugin -t preact --force   # 覆盖已存在的目录
+npx uiautodev create my-plugin -t preact --force   # 替换已存在的目录
 ```
 
 ## 下载

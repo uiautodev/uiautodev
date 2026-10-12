@@ -30,8 +30,27 @@ function extractTarball(tarball, targetDir) {
   }
 }
 
+function replaceDir(stagingDir, targetDir) {
+  if (!fs.existsSync(targetDir)) {
+    fs.renameSync(stagingDir, targetDir);
+    return;
+  }
+
+  const backupDir = `${stagingDir}.bak`;
+  fs.renameSync(targetDir, backupDir);
+  try {
+    fs.renameSync(stagingDir, targetDir);
+  } catch (err) {
+    fs.renameSync(backupDir, targetDir);
+    throw err;
+  }
+  fs.rmSync(backupDir, { recursive: true, force: true });
+}
+
 async function scaffold({ template, name, force, cwd = process.cwd() }) {
   const targetDir = path.resolve(cwd, name);
+  const parentDir = path.dirname(targetDir);
+  const baseName = path.basename(targetDir);
 
   if (fs.existsSync(targetDir)) {
     if (!fs.statSync(targetDir).isDirectory()) {
@@ -44,20 +63,26 @@ async function scaffold({ template, name, force, cwd = process.cwd() }) {
     }
   }
 
-  fs.mkdirSync(targetDir, { recursive: true });
+  fs.mkdirSync(parentDir, { recursive: true });
 
+  const stagingDir = fs.mkdtempSync(
+    path.join(parentDir, `.${baseName}.uiautodev-`)
+  );
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'uiautodev-create-'));
   const tarball = path.join(tmpDir, 'template.tar.gz');
+
   try {
     process.stderr.write(`Downloading template "${template.name}"...\n`);
     log('downloading %s -> %s', template.tarball, tarball);
     await downloadTo(template.tarball, tarball);
-    extractTarball(tarball, targetDir);
+    extractTarball(tarball, stagingDir);
+    replaceDir(stagingDir, targetDir);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.rmSync(stagingDir, { recursive: true, force: true });
   }
 
   return targetDir;
 }
 
-module.exports = { scaffold, extractTarball, isEmptyDir };
+module.exports = { scaffold, extractTarball, isEmptyDir, replaceDir };

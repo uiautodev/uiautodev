@@ -5,6 +5,7 @@ const path = require('node:path');
 const { listTemplates, getTemplate } = require('../templates');
 const { select } = require('../prompt');
 const { scaffold } = require('../scaffold');
+const { quotePath } = require('../shell');
 
 async function resolveTemplate(name) {
   if (name) {
@@ -32,7 +33,7 @@ async function createCommand(opts) {
   process.stdout.write(
     `\nCreated ${template.name} plugin at ${rel}\n\n` +
       'Next steps:\n' +
-      `  cd ${rel}\n` +
+      `  cd ${quotePath(rel)}\n` +
       '  npm install\n' +
       '  npm run dev\n'
   );

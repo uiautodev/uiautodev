@@ -28,8 +28,13 @@
     "device"
   ],
   "license": "MIT",
+  "homepage": "https://github.com/uiautodev/uiautodev/tree/master/npm#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/uiautodev/uiautodev.git"
+    "url": "git+https://github.com/uiautodev/uiautodev.git",
+    "directory": "npm"
+  },
+  "bugs": {
+    "url": "https://github.com/uiautodev/uiautodev/issues"
   }
 }

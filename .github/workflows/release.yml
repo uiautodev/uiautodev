@@ -50,6 +50,7 @@ jobs:
 
       - name: Determine version bump
         id: bump
+        working-directory: npm
         shell: bash
         run: |
           set -euo pipefail

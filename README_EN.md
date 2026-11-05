@@ -8,7 +8,9 @@ uiautodev is a tool focused on **mobile device control, automation, and remote r
 
 > **What this repository contains:** only the npm-related code for UIAutoDev — the `uiautodev` CLI that downloads and runs the server binary, and provides the `npx uiautodev` entry point. The UIAutoDev core (desktop app and server) is **not open source yet**. Many related projects and plugins are open source, see [Related projects and plugins](#related-projects-and-plugins).
 
-![uiautodev](images/uiautodev.jpg)
+![UIAutoDev device list](images/app-devices.jpg)
+
+![UIAutoDev device control and element inspector](images/app-control.jpg)
 
 ## Quick Start
 
@@ -85,8 +87,9 @@ We collect feedback for UIAutoDev in [GitHub Issues](https://github.com/uiautode
 The core is not open source, but many related projects and plugins are. Plugin repositories and templates live at [github.com/uiautodev-plugins](https://github.com/uiautodev-plugins).
 
 - [uiautodev-plugins](https://github.com/uiautodev-plugins) Official open-source plugin templates and plugins
+- [go-adbkit](https://github.com/codeskyblue/go-adbkit) A pure Go client library for the Android Debug Bridge (ADB) protocol
+- [go-hdckit](https://github.com/uiautodev/go-hdckit) A pure Go client and CLI for HarmonyOS HDC
 - [dictlog](https://github.com/uiautodev/dictlog) A structured Python logging library, compatible with the standard `logging` module
-- [uiautoagent](https://github.com/uiautodev/uiautoagent) Use AI to control your phone to complete tasks
 
 ## License
 

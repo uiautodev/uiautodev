@@ -49,8 +49,9 @@ Feedback, issues, and feature requests for UIAutoDev are welcome in [GitHub Issu
 The core is not open source, but many related projects and plugins are. Plugin repositories live at [github.com/uiautodev-plugins](https://github.com/uiautodev-plugins).
 
 - [uiautodev-plugins](https://github.com/uiautodev-plugins) Official plugin templates and plugins
+- [go-adbkit](https://github.com/codeskyblue/go-adbkit) A pure Go client library for the Android Debug Bridge (ADB) protocol
+- [go-hdckit](https://github.com/uiautodev/go-hdckit) A pure Go client and CLI for HarmonyOS HDC
 - [dictlog](https://github.com/uiautodev/dictlog) A structured Python logging library, compatible with the standard `logging` module
-- [uiautoagent](https://github.com/uiautodev/uiautoagent) Use AI to control your phone to complete tasks
 
 ## Download
 

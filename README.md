@@ -8,7 +8,9 @@ uiautodev 是专注于**移动端控制、自动化与远程真机**的工具，
 
 > **本仓库包含什么：** 本仓库只包含 UIAutoDev 的 npm 相关代码，即负责下载并运行服务端二进制的 `uiautodev` CLI，提供 `npx uiautodev` 的使用方式。UIAutoDev 核心（桌面应用与服务端）**尚未开源**。但很多相关项目与插件是开源的，见 [相关项目与插件](#相关项目与插件)。
 
-![uiautodev](images/uiautodev.jpg)
+![UIAutoDev 设备列表](images/app-devices.jpg)
+
+![UIAutoDev 设备控制与元素查看](images/app-control.jpg)
 
 ## 快速开始
 
@@ -79,8 +81,9 @@ https://www.yuque.com/codeskyblue/uiautodev
 核心尚未开源，但很多相关项目与插件是开源的。插件仓库与模板位于 [github.com/uiautodev-plugins](https://github.com/uiautodev-plugins)。
 
 - [uiautodev-plugins](https://github.com/uiautodev-plugins) 官方开源插件模板与插件
+- [go-adbkit](https://github.com/codeskyblue/go-adbkit) 纯 Go 实现的 ADB 协议客户端库
+- [go-hdckit](https://github.com/uiautodev/go-hdckit) 纯 Go 实现的 HarmonyOS HDC 客户端与命令行工具
 - [dictlog](https://github.com/uiautodev/dictlog) 结构化的 Python 日志库，兼容标准库 `logging`
-- [uiautoagent](https://github.com/uiautodev/uiautoagent) 使用 AI 控制手机完成任务
 
 ## 许可证
 

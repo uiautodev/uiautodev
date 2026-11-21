@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"uiautodev-wails/webserver/utils"
+	"github.com/uiautodev/uiautodev/webserver/utils"
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"

@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"time"
 
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/webserver/device"
 )
 
 type remoteDevice struct {

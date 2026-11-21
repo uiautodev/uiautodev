@@ -6,7 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/webserver/device"
 )
 
 // errClipboardUnsupported is returned for platforms without a clipboard API,

@@ -18,9 +18,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"uiautodev-wails/version"
-	"uiautodev-wails/webserver/cluster"
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/version"
+	"github.com/uiautodev/uiautodev/webserver/cluster"
+	"github.com/uiautodev/uiautodev/webserver/device"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"

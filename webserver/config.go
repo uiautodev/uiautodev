@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"uiautodev-wails/webserver/cluster"
+	"github.com/uiautodev/uiautodev/webserver/cluster"
 )
 
 // PluginRecord is the persisted per-plugin state: the enabled flag plus the

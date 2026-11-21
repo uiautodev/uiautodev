@@ -11,7 +11,7 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/webserver/device"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

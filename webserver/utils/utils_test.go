@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"uiautodev-wails/webserver/utils"
+	"github.com/uiautodev/uiautodev/webserver/utils"
 )
 
 func TestShellJoin(t *testing.T) {

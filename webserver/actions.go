@@ -10,7 +10,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/webserver/device"
 )
 
 // errShellUnsupported is returned when a device type cannot run shell commands.

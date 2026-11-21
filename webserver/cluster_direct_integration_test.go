@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"uiautodev-wails/webserver/cluster"
+	"github.com/uiautodev/uiautodev/webserver/cluster"
 )
 
 func newDirectSlaveServer(t *testing.T, username, password string, onRequest ...func()) *httptest.Server {

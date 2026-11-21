@@ -13,7 +13,7 @@ import (
 	"github.com/adrg/xdg"
 	"github.com/wailsapp/wails/v3/pkg/application"
 
-	"uiautodev-wails/webserver"
+	"github.com/uiautodev/uiautodev/webserver"
 
 	slogmulti "github.com/samber/slog-multi"
 )

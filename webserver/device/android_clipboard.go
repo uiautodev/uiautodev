@@ -11,7 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"uiautodev-wails/webserver/utils"
+	"github.com/uiautodev/uiautodev/webserver/utils"
 )
 
 // clipboardHelperVersion is the version of the embedded clipboard helper.

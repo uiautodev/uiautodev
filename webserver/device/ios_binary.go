@@ -13,7 +13,7 @@ import (
 
 	"github.com/adrg/xdg"
 
-	"uiautodev-wails/webserver/utils"
+	"github.com/uiautodev/uiautodev/webserver/utils"
 )
 
 // iosDownloadBaseURL is the base URL for lazily downloaded helper binaries.

@@ -1,4 +1,4 @@
-module uiautodev-wails
+module github.com/uiautodev/uiautodev
 
 go 1.26.0
 

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"uiautodev-wails/version"
+	"github.com/uiautodev/uiautodev/version"
 
 	"github.com/labstack/echo/v4"
 )

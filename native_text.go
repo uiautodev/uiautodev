@@ -3,7 +3,7 @@ package main
 import (
 	"strings"
 
-	"uiautodev-wails/webserver"
+	"github.com/uiautodev/uiautodev/webserver"
 )
 
 type nativeLabels struct {

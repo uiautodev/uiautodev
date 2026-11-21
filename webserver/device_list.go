@@ -3,7 +3,7 @@ package webserver
 import (
 	"log/slog"
 
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/webserver/device"
 )
 
 // listDevicesByPlatform enumerates device IDs for the given platforms, grouped

@@ -16,9 +16,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"uiautodev-wails/version"
-	"uiautodev-wails/webserver"
-	"uiautodev-wails/webserver/cluster"
+	"github.com/uiautodev/uiautodev/version"
+	"github.com/uiautodev/uiautodev/webserver"
+	"github.com/uiautodev/uiautodev/webserver/cluster"
 
 	"github.com/MatusOllah/slogcolor"
 	"github.com/labstack/echo/v4"

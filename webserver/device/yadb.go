@@ -13,7 +13,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"uiautodev-wails/webserver/utils"
+	"github.com/uiautodev/uiautodev/webserver/utils"
 )
 
 // yadbVersion is the version of the embedded yadb binary.

@@ -3,7 +3,7 @@ package webserver
 import (
 	"sync"
 
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/webserver/device"
 )
 
 // startDeviceWatcher is a variable so tests can avoid talking to real

@@ -43,6 +43,8 @@ frontend_build/
 *-linux-arm64
 *.zip
 /cmd/uiautodev-server/uiautodev-server
+/cmd/uiautodev-server/frontend_build/
+/frontend/bindings/github.com/uiautodev/
 /plugins/
 dist/
 devimages/
@@ -60,7 +62,6 @@ version/version.json
 .github/*
 !.github/workflows/
 !.github/FUNDING.yml
-/uiautodev-wails
 /main
 /uiautodev
 /uiautodev-server

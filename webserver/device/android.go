@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"uiautodev-wails/webserver/utils"
+	"github.com/uiautodev/uiautodev/webserver/utils"
 
 	"github.com/codeskyblue/go-adbkit/adb"
 	"github.com/codeskyblue/go-adbkit/tcpusb"

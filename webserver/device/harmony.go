@@ -17,7 +17,7 @@ import (
 
 	_ "image/png"
 
-	"uiautodev-wails/webserver/utils"
+	"github.com/uiautodev/uiautodev/webserver/utils"
 
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"

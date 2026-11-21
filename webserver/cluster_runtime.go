@@ -9,8 +9,8 @@ import (
 
 	"github.com/labstack/echo/v4"
 
-	"uiautodev-wails/webserver/cluster"
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/webserver/cluster"
+	"github.com/uiautodev/uiautodev/webserver/device"
 )
 
 var activeClusterMaster atomic.Pointer[cluster.Master]

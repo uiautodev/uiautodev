@@ -16,7 +16,7 @@ import (
 
 	"github.com/hashicorp/yamux"
 
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/webserver/device"
 )
 
 func yamuxConfig() *yamux.Config {

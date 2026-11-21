@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/webserver/device"
 
 	"github.com/labstack/echo/v4"
 )

@@ -9,9 +9,9 @@ import (
 	"os"
 	"strings"
 	"time"
-	"uiautodev-wails/internal/update"
-	"uiautodev-wails/version"
-	"uiautodev-wails/webserver"
+	"github.com/uiautodev/uiautodev/internal/update"
+	"github.com/uiautodev/uiautodev/version"
+	"github.com/uiautodev/uiautodev/webserver"
 
 	"github.com/labstack/echo/v4"
 	"github.com/wailsapp/wails/v3/pkg/application"

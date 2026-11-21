@@ -6,7 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"uiautodev-wails/webserver/utils"
+	"github.com/uiautodev/uiautodev/webserver/utils"
 )
 
 // harmonyPasteboardPrefix is the stdout prefix of `testhelper get-pastedata`.

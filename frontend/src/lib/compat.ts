@@ -14,7 +14,7 @@ export async function openExternalURL(url: string) {
 }
 
 async function wailsApp() {
-  const { App } = await import("../../bindings/uiautodev-wails");
+  const { App } = await import("../../bindings/github.com/uiautodev/uiautodev");
   return App;
 }
 
@@ -74,7 +74,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 // Save via the Wails desktop bridge (native save dialog).
 async function saveFileWails(buffer: ArrayBuffer, defaultFilename: string): Promise<boolean> {
-  const { App } = await import("../../bindings/uiautodev-wails");
+  const { App } = await import("../../bindings/github.com/uiautodev/uiautodev");
   try {
     const exts = fileFilterFor(defaultFilename);
     const filePath = await App.SaveFileDialog(defaultFilename, exts);

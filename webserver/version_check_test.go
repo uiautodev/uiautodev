@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"uiautodev-wails/version"
+	"github.com/uiautodev/uiautodev/version"
 
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"

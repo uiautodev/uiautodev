@@ -16,7 +16,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/webserver/device"
 )
 
 // Duration is a JSON-friendly time.Duration using formats like "1h" or "30m".

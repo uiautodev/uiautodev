@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"uiautodev-wails/internal/update"
-	"uiautodev-wails/version"
+	"github.com/uiautodev/uiautodev/internal/update"
+	"github.com/uiautodev/uiautodev/version"
 
 	"github.com/labstack/echo/v4"
 )

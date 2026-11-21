@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"sync"
 	"time"
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/webserver/device"
 )
 
 type deviceCacheItem struct {

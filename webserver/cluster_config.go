@@ -1,7 +1,7 @@
 package webserver
 
 import (
-	"uiautodev-wails/webserver/cluster"
+	"github.com/uiautodev/uiautodev/webserver/cluster"
 )
 
 type configClusterStore struct{}

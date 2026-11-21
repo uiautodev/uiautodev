@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
-	"uiautodev-wails/internal/s3store"
+	"github.com/uiautodev/uiautodev/internal/s3store"
 )
 
 func main() {

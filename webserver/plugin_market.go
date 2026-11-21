@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"uiautodev-wails/version"
+	"github.com/uiautodev/uiautodev/version"
 
 	"github.com/Masterminds/semver"
 	"github.com/labstack/echo/v4"

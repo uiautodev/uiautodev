@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"uiautodev-wails/internal/update"
+	"github.com/uiautodev/uiautodev/internal/update"
 )
 
 func main() {

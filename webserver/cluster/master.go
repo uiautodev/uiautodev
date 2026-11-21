@@ -21,7 +21,7 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/labstack/echo/v4"
 
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/webserver/device"
 )
 
 // MasterConfig configures the master side of the cluster.

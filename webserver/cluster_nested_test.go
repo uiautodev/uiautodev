@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"uiautodev-wails/webserver/cluster"
+	"github.com/uiautodev/uiautodev/webserver/cluster"
 
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"

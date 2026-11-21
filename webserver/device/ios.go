@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"uiautodev-wails/webserver/utils"
+	"github.com/uiautodev/uiautodev/webserver/utils"
 
 	"github.com/adrg/xdg"
 	"github.com/danielpaulus/go-ios/ios"

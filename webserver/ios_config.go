@@ -1,6 +1,6 @@
 package webserver
 
-import "uiautodev-wails/webserver/device"
+import "github.com/uiautodev/uiautodev/webserver/device"
 
 func init() {
 	device.SetIOSConfigResolver(func(udid string) device.IOSConfig {

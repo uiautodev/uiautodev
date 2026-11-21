@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"uiautodev-wails/webserver/cluster"
-	"uiautodev-wails/webserver/device"
+	"github.com/uiautodev/uiautodev/webserver/cluster"
+	"github.com/uiautodev/uiautodev/webserver/device"
 )
 
 func waitForCondition(t *testing.T, timeout time.Duration, check func() bool) {

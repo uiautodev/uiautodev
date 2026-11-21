@@ -12,7 +12,7 @@ npx uiautodev
 
 After startup, the server listens on `http://127.0.0.1:33299` by default.
 
-> The UIAutoDev core (desktop app and server) is not open source yet. This repository only hosts the npm-related code, and this package is the supported `npx uiautodev` entry point.
+> The desktop app and server live in the same repository; this package is the supported `npx uiautodev` entry point.
 
 ## CLI
 
@@ -46,7 +46,7 @@ Feedback, issues, and feature requests for UIAutoDev are welcome in [GitHub Issu
 
 ## Related projects and plugins
 
-The core is not open source, but many related projects and plugins are. Plugin repositories live at [github.com/uiautodev-plugins](https://github.com/uiautodev-plugins).
+Plugin repositories live at [github.com/uiautodev-plugins](https://github.com/uiautodev-plugins).
 
 - [uiautodev-plugins](https://github.com/uiautodev-plugins) Official plugin templates and plugins
 - [go-adbkit](https://github.com/codeskyblue/go-adbkit) A pure Go client library for the Android Debug Bridge (ADB) protocol

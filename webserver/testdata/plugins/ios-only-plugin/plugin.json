@@ -1,0 +1,6 @@
+{
+  "name": "ios-only-plugin",
+  "version": "1.0.0",
+  "description": "A plugin that only works on iOS",
+  "platforms": ["ios"]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "multi-platform-plugin",
+  "version": "1.0.0",
+  "description": "A plugin that works on both Android and iOS",
+  "platforms": ["android", "ios"]
+}

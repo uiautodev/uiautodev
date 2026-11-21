@@ -1,0 +1,5 @@
+{
+  "name": "invalid-plugin-no-index",
+  "version": "1.0.0",
+  "description": "A plugin that has no index.html"
+}

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "allowed_hosts": {
+      "description": "允许代理的目标host，支持通配符 *",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "description": {
+      "description": "插件描述",
+      "type": "string"
+    },
+    "display": {
+      "description": "显示模式: \"card\"(默认,网格卡片) 或 \"tab\"(独立标签页)",
+      "enum": [
+        "card",
+        "tab"
+      ],
+      "type": "string"
+    },
+    "height": {
+      "description": "插件窗口高度，默认自适应",
+      "type": "integer"
+    },
+    "homepage": {
+      "description": "插件主页链接",
+      "type": "string"
+    },
+    "id": {
+      "description": "插件唯一ID，zip安装时用作目录名，默认使用name",
+      "type": "string"
+    },
+    "main": {
+      "description": "入口文件，默认 index.html",
+      "type": "string"
+    },
+    "name": {
+      "description": "插件名称，默认使用目录名",
+      "type": "string"
+    },
+    "platforms": {
+      "description": "支持的平台，空数组或不填表示全平台",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "version": {
+      "description": "版本号",
+      "type": "string"
+    }
+  },
+  "title": "UIAutoDev Plugin Manifest",
+  "type": "object"
+}

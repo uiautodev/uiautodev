@@ -1,0 +1,125 @@
+name: npm Release
+
+# npm 包的版本号独立于桌面端/服务端：本 workflow 在 master 上按 Conventional
+# Commits 升版本、打 vX.Y.Z tag 并发布 npm 包。桌面端/服务端由 release.yml 在
+# 不带 v 前缀的 tag 上构建。
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump. auto = infer from conventional commits since the last version bump."
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Skip the version-bump commit so it does not trigger another release.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.head_commit != null &&
+       !contains(github.event.head_commit.message, '[skip release]') &&
+       !startsWith(github.event.head_commit.message, 'chore: release v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Install dependencies and run tests
+        working-directory: npm
+        run: |
+          npm ci
+          npm test
+
+      - name: Determine version bump
+        id: bump
+        working-directory: npm
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUMP="${{ inputs.bump }}"
+          BUMP="${BUMP:-auto}"
+
+          if [ "$BUMP" = "auto" ]; then
+            CURRENT="$(node -p "require('./package.json').version")"
+            BASE_COMMIT="$(git log -1 --format=%H -S "\"version\": \"$CURRENT\"" || true)"
+            if [ -n "$BASE_COMMIT" ]; then
+              RANGE="${BASE_COMMIT}..HEAD"
+            else
+              RANGE="HEAD"
+            fi
+            LOG="$(git log "$RANGE" --format='%s%n%b%n---')"
+
+            if echo "$LOG" | grep -qE 'BREAKING[[:space:]]CHANGE:|^[a-zA-Z]+(\([^)]*\))?!:' ; then
+              BUMP="major"
+            elif echo "$LOG" | grep -qE '^feat(\([^)]*\))?:' ; then
+              BUMP="minor"
+            elif echo "$LOG" | grep -qE '^(fix|perf|revert)(\([^)]*\))?:' ; then
+              BUMP="patch"
+            else
+              echo "No version-worthy changes since the last version bump; skipping release."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+
+      - name: Bump version, commit and tag
+        id: version
+        if: steps.bump.outputs.skip != 'true'
+        working-directory: npm
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm version "${{ steps.bump.outputs.bump }}" --no-git-tag-version >/dev/null
+          VERSION="$(node -p "require('./package.json').version")"
+          cd ..
+          git add npm/package.json npm/package-lock.json
+          git commit -m "chore: release v$VERSION"
+          git tag "v$VERSION"
+          echo "version=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Push commit and tag
+        if: steps.bump.outputs.skip != 'true'
+        run: |
+          git push origin HEAD:master
+          git push origin "${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub release
+        if: steps.bump.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            --title "${{ steps.version.outputs.version }}" \
+            --generate-notes
+
+      - name: Trigger npm publish
+        if: steps.bump.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run npm-publish.yml \
+            -f tag="${{ steps.version.outputs.version }}" \
+            --ref master

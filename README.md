@@ -34,7 +34,7 @@
 | `images/` | 文档图片 |
 | `docs/` | 文档资源、更新说明与设计文档 |
 
-桌面端与服务端推送 `x.y.z` tag 后由 `.github/workflows/release.yml` 构建发布；npm 包版本独立维护，由 `.github/workflows/npm-release.yml` 自动升版本并发布。
+桌面端与服务端推送 `x.y.z` tag 后由 `.github/workflows/release.yml` 构建发布；npm 包版本独立维护（不跟随应用 tag），由 `.github/workflows/npm-release.yml` 在 `npm/` 变更时升版本并发布。
 
 ## iOS 辅助程序
 

@@ -32,7 +32,7 @@ The server can also be started directly with `npx uiautodev run`.
 | `images/` | Documentation images |
 | `docs/` | Documentation assets, update notes and design documents |
 
-Pushing an `x.y.z` tag builds and publishes the desktop app and server via `.github/workflows/release.yml`; the npm package is versioned separately and released automatically by `.github/workflows/npm-release.yml`.
+Pushing an `x.y.z` tag builds and publishes the desktop app and server via `.github/workflows/release.yml`; the npm package keeps its own version (independent of app tags) and is released by `.github/workflows/npm-release.yml` when `npm/` changes.
 
 ## iOS helper binary
 

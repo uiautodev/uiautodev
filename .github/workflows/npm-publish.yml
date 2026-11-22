@@ -1,24 +1,16 @@
 name: Publish to npm
 
+# npm 包版本以 npm/package.json 为准，不依赖 git tag / GitHub Release。
+# 由 npm-release.yml 升版本后触发，也可手动运行发布当前分支的版本。
 on:
-  release:
-    types: [published]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Tag to publish (e.g. v0.4.3). Defaults to the release tag or the current ref."
-        required: false
 
 concurrency:
-  group: npm-publish-${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
+  group: npm-publish-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   publish:
-    # 应用 release（不带 v 的 tag）也会触发 release 事件，这里只处理 npm 的 vX.Y.Z。
-    if: >-
-      github.event_name != 'release' ||
-      startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,8 +20,6 @@ jobs:
         working-directory: npm
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || github.event.release.tag_name || github.ref }}
 
       - uses: actions/setup-node@v4
         with:

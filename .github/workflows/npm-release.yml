@@ -1,11 +1,13 @@
 name: npm Release
 
-# npm 包的版本号独立于桌面端/服务端：本 workflow 在 master 上按 Conventional
-# Commits 升版本、打 vX.Y.Z tag 并发布 npm 包。桌面端/服务端由 release.yml 在
-# 不带 v 前缀的 tag 上构建。
+# npm 包的版本号独立于桌面端/服务端：本 workflow 只在 npm/ 变更时按
+# Conventional Commits 升版本、打 vX.Y.Z tag 并发布 npm 包。桌面端/服务端由
+# release.yml 在不带 v 前缀的 tag 上构建。
 on:
   push:
     branches: [master]
+    paths:
+      - "npm/**"
   workflow_dispatch:
     inputs:
       bump:
@@ -62,13 +64,13 @@ jobs:
 
           if [ "$BUMP" = "auto" ]; then
             CURRENT="$(node -p "require('./package.json').version")"
-            BASE_COMMIT="$(git log -1 --format=%H -S "\"version\": \"$CURRENT\"" || true)"
+            BASE_COMMIT="$(git log -1 --format=%H -S "\"version\": \"$CURRENT\"" -- package.json || true)"
             if [ -n "$BASE_COMMIT" ]; then
               RANGE="${BASE_COMMIT}..HEAD"
             else
               RANGE="HEAD"
             fi
-            LOG="$(git log "$RANGE" --format='%s%n%b%n---')"
+            LOG="$(git log "$RANGE" --format='%s%n%b%n---' -- .)"
 
             if echo "$LOG" | grep -qE 'BREAKING[[:space:]]CHANGE:|^[a-zA-Z]+(\([^)]*\))?!:' ; then
               BUMP="major"

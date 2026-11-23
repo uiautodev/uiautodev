@@ -1,0 +1,35 @@
+name: Run checks
+description: 跑 Go 单测与前端类型检查
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
+
+    # version/version.go 是 go generate 产物（未入库）。
+    - name: Generate version and plugin schema
+      shell: bash
+      run: go generate ./version ./webserver/...
+
+    # 桌面端依赖 wails 的 GTK4/WebKitGTK 6.0 cgo 实现，Linux runner 默认没有
+    # 这些头文件；用 server 标签 + CGO_ENABLED=0 跑测试，涉及的业务代码不变。
+    - name: Go tests
+      shell: bash
+      env:
+        CGO_ENABLED: "0"
+        GOFLAGS: "-tags=server"
+      run: make test
+
+    - name: Frontend check
+      shell: bash
+      run: |
+        cd frontend
+        bun install --frozen-lockfile
+        bun run check

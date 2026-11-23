@@ -1,0 +1,51 @@
+name: Publish to npm
+
+# npm 包版本以 npm/package.json 为准，不依赖 git tag / GitHub Release。
+# 由 npm-release.yml 升版本后触发，也可手动运行发布当前分支的版本。
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: npm-publish-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: npm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Check whether this version is already published
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "uiautodev@$VERSION" version >/dev/null 2>&1; then
+            echo "uiautodev@$VERSION is already published; skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish
+        if: steps.check.outputs.skip != 'true'
+        run: npm publish --provenance

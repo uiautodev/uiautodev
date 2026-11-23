@@ -1,122 +1,517 @@
 name: Release
 
+# 推 x.y.z tag 即构建全部产物并发布到 GitHub Release。
+# 只匹配不带 v 前缀的应用 tag，避免 npm 的 vX.Y.Z tag 触发桌面端构建。
 on:
   push:
-    branches: [master]
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: "Version bump. auto = infer from conventional commits since the last version bump."
-        type: choice
-        options: [auto, patch, minor, major]
-        default: auto
+    tags:
+      - "[0-9]*.[0-9]*.[0-9]*"
 
 concurrency:
-  group: release
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
+env:
+  # 与 go.mod 中的 github.com/wailsapp/wails/v3 版本保持一致
+  WAILS3_VERSION: v3.0.0
+
 jobs:
-  release:
-    # Skip the version-bump commit so it does not trigger another release.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.head_commit != null &&
-       !contains(github.event.head_commit.message, '[skip release]') &&
-       !startsWith(github.event.head_commit.message, 'chore: release v'))
+  # 生成 wails bindings 并构建前端，供 check / server 构建复用。
+  frontend:
+    name: Frontend
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      actions: write
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
-          ref: master
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/prepare-frontend
         with:
-          node-version: "22.x"
+          wails3-version: ${{ env.WAILS3_VERSION }}
 
-      - name: Configure git
+      - uses: actions/upload-artifact@v7
+        with:
+          name: frontend
+          path: |
+            frontend/bindings
+            frontend/build
+          include-hidden-files: true
+          if-no-files-found: error
+
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check tag format
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Install dependencies and run tests
-        working-directory: npm
-        run: |
-          npm ci
-          npm test
-
-      - name: Determine version bump
-        id: bump
-        working-directory: npm
-        shell: bash
-        run: |
-          set -euo pipefail
-          BUMP="${{ inputs.bump }}"
-          BUMP="${BUMP:-auto}"
-
-          if [ "$BUMP" = "auto" ]; then
-            CURRENT="$(node -p "require('./package.json').version")"
-            BASE_COMMIT="$(git log -1 --format=%H -S "\"version\": \"$CURRENT\"" || true)"
-            if [ -n "$BASE_COMMIT" ]; then
-              RANGE="${BASE_COMMIT}..HEAD"
-            else
-              RANGE="HEAD"
-            fi
-            LOG="$(git log "$RANGE" --format='%s%n%b%n---')"
-
-            if echo "$LOG" | grep -qE 'BREAKING[[:space:]]CHANGE:|^[a-zA-Z]+(\([^)]*\))?!:' ; then
-              BUMP="major"
-            elif echo "$LOG" | grep -qE '^feat(\([^)]*\))?:' ; then
-              BUMP="minor"
-            elif echo "$LOG" | grep -qE '^(fix|perf|revert)(\([^)]*\))?:' ; then
-              BUMP="patch"
-            else
-              echo "No version-worthy changes since the last version bump; skipping release."
-              echo "skip=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
+          if ! printf '%s' "$GITHUB_REF_NAME" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "tag must look like 1.2.3 or v1.2.3, got $GITHUB_REF_NAME" >&2
+            exit 1
           fi
 
-          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v8
+        with:
+          name: frontend
+          path: frontend
+          merge-multiple: true
 
-      - name: Bump version, commit and tag
-        id: version
-        if: steps.bump.outputs.skip != 'true'
-        working-directory: npm
-        shell: bash
+      - uses: ./.github/actions/run-checks
+
+  server:
+    name: Server binaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: frontend
+          path: frontend
+          merge-multiple: true
+
+      - name: Cache Go build
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/go-build
+          key: go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: go-build-${{ runner.os }}-
+
+      - name: Generate version and plugin schema
+        run: go generate ./version ./webserver/...
+
+      - name: Embed frontend into server
+        run: |
+          rm -rf cmd/uiautodev-server/frontend_build
+          cp -r frontend/build cmd/uiautodev-server/frontend_build
+
+      - name: Build server binaries
         run: |
           set -euo pipefail
-          npm version "${{ steps.bump.outputs.bump }}" --no-git-tag-version >/dev/null
-          VERSION="$(node -p "require('./package.json').version")"
-          cd ..
-          git add npm/package.json npm/package-lock.json
-          git commit -m "chore: release v$VERSION"
-          git tag "v$VERSION"
-          echo "version=v$VERSION" >> "$GITHUB_OUTPUT"
+          VERSION="$(jq -r .version version/version.json)"
+          mkdir -p dist
+          pids=()
+          build() {
+            local goos="$1" goarch="$2" out="$3"
+            echo "building $out"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
+              go build -o "dist/$out" ./cmd/uiautodev-server &
+            pids+=($!)
+          }
+          build darwin amd64 "uiautodev-server-darwin-x86_64-$VERSION"
+          build darwin arm64 "uiautodev-server-darwin-arm64-$VERSION"
+          build windows amd64 "uiautodev-server-windows-amd64-$VERSION.exe"
+          build linux amd64 "uiautodev-server-linux-x86_64-$VERSION"
+          build linux arm64 "uiautodev-server-linux-arm64-$VERSION"
+          for pid in "${pids[@]}"; do
+            wait "$pid"
+          done
+          ls -lh dist
 
-      - name: Push commit and tag
-        if: steps.bump.outputs.skip != 'true'
+      - uses: actions/upload-artifact@v7
+        with:
+          name: server
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    name: macOS desktop
+    runs-on: macos-15
+    timeout-minutes: 60
+    needs: frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check signing configuration
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SKIP_NOTARIZATION: ${{ vars.SKIP_NOTARIZATION }}
         run: |
-          git push origin HEAD:master
-          git push origin "${{ steps.version.outputs.version }}"
+          set -euo pipefail
+          missing=()
+          for name in MACOS_CERTIFICATE MACOS_CERTIFICATE_PASSWORD CODESIGN_IDENTITY; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "缺少 Secrets: ${missing[*]}" >&2
+            echo "请先在 Settings -> Secrets and variables -> Actions 配置" >&2
+            exit 1
+          fi
 
-      - name: Create GitHub release
-        if: steps.bump.outputs.skip != 'true'
+          if [ "${SKIP_NOTARIZATION:-}" = "1" ]; then
+            echo "::warning::SKIP_NOTARIZATION=1，只签名不公证（仅用于验证构建链路）"
+            echo "NOTARIZE=false" >> "$GITHUB_ENV"
+            echo "NOTARY_AUTH=" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          # 优先用 App Store Connect API Key，其次 Apple ID + App 专用密码
+          if [ -n "${APPLE_API_KEY:-}" ] && [ -n "${APPLE_API_KEY_ID:-}" ] && [ -n "${APPLE_API_ISSUER:-}" ]; then
+            echo "NOTARY_AUTH=api_key" >> "$GITHUB_ENV"
+          elif [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+            echo "NOTARY_AUTH=apple_id" >> "$GITHUB_ENV"
+          else
+            echo "缺少公证凭据: 需要 APPLE_API_KEY/APPLE_API_KEY_ID/APPLE_API_ISSUER 或 APPLE_ID/APPLE_APP_PASSWORD/APPLE_TEAM_ID" >&2
+            exit 1
+          fi
+          echo "NOTARIZE=true" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache wails3 CLI
+        id: wails3-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/go/bin/wails3*
+          key: wails3-${{ env.WAILS3_VERSION }}-${{ runner.os }}
+
+      - name: Install wails3
+        if: steps.wails3-cache.outputs.cache-hit != 'true'
+        run: go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS3_VERSION}"
+
+      - name: Add wails3 to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Go build
+        uses: actions/cache@v6
+        with:
+          path: ~/Library/Caches/go-build
+          key: go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: go-build-${{ runner.os }}-
+
+      - name: Install dmgbuild
+        run: |
+          set -euo pipefail
+          if command -v pipx >/dev/null 2>&1; then
+            pipx install "dmgbuild>=1.6.7"
+          else
+            python3 -m pip install --user "dmgbuild>=1.6.7"
+          fi
+          echo "$(python3 -m site --user-base)/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Download helper binaries
+        run: scripts/download-binaries.sh darwin
+
+      - name: Generate version and plugin schema
+        run: go generate ./version ./webserver/...
+
+      - name: Package universal app
+        run: wails3 task darwin:package:universal EXTRA_TAGS=devtools
+
+      - name: Prepare app bundle
+        run: |
+          set -euo pipefail
+          VERSION="$(jq -r .version version/version.json)"
+          APP="build/bin/Uiautodev Desktop.app"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier dev.uiauto.desktop" "$APP/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist"
+          cp binaries/darwin/adb "$APP/Contents/MacOS/"
+
+      - name: Import signing certificate
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/cert.p12" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Sign app
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+        run: scripts/macos-sign.sh sign "build/bin/Uiautodev Desktop.app"
+
+      - name: Create dmg
+        run: |
+          set -euo pipefail
+          VERSION="$(jq -r .version version/version.json)"
+          mkdir -p dist
+          dmgbuild -s dmg_settings.py \
+            -D app="build/bin/Uiautodev Desktop.app" \
+            "Uiautodev Desktop $VERSION" \
+            "dist/UiautodevDesktop-mac-$VERSION.dmg"
+
+      - name: Sign dmg
+        if: env.NOTARIZE != 'true'
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+        run: |
+          set -euo pipefail
+          VERSION="$(jq -r .version version/version.json)"
+          codesign --force --sign "$CODESIGN_IDENTITY" --timestamp "dist/UiautodevDesktop-mac-$VERSION.dmg"
+          codesign --verify --strict --verbose=2 "dist/UiautodevDesktop-mac-$VERSION.dmg"
+
+      - name: Write notarization API key
+        if: env.NOTARY_AUTH == 'api_key'
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY }}
+        run: |
+          set -euo pipefail
+          echo "$APPLE_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
+          echo "APPLE_API_KEY=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+
+      - name: Notarize dmg
+        if: env.NOTARIZE == 'true'
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+          APPLE_API_KEY: ${{ env.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          REQUIRE_NOTARIZATION: "1"
+        run: |
+          set -euo pipefail
+          VERSION="$(jq -r .version version/version.json)"
+          scripts/macos-sign.sh notarize "dist/UiautodevDesktop-mac-$VERSION.dmg"
+
+      - name: Delete signing keychain
+        if: always()
+        run: |
+          if [ -n "${KEYCHAIN_PATH:-}" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos
+          path: dist/UiautodevDesktop-mac-*.dmg
+          if-no-files-found: error
+
+  windows:
+    name: Windows desktop
+    runs-on: windows-latest
+    timeout-minutes: 45
+    needs: frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          # Windows runner 上保存模块缓存要 6 分钟以上，得不偿失
+          cache: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache wails3 CLI
+        id: wails3-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/go/bin/wails3*
+          key: wails3-${{ env.WAILS3_VERSION }}-${{ runner.os }}
+
+      - name: Install wails3
+        if: steps.wails3-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS3_VERSION}"
+
+      - name: Add wails3 to PATH
+        shell: bash
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Download helper binaries
+        shell: bash
+        run: scripts/download-binaries.sh windows
+
+      - name: Generate version and plugin schema
+        shell: bash
+        run: |
+          go generate ./version ./webserver/...
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Build desktop app
+        run: wails3 build -tags devtools APP_NAME=uiautodev-desktop
+
+      - name: Package zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE/dist" | Out-Null
+          New-Item -ItemType Directory -Force -Path "build/bin/tools" | Out-Null
+          Copy-Item binaries/windows/adb.exe, binaries/windows/AdbWinApi.dll, binaries/windows/AdbWinUsbApi.dll -Destination build/bin/tools/
+          Push-Location build/bin
+          try {
+            Compress-Archive -Path uiautodev-desktop.exe, tools -DestinationPath "$env:GITHUB_WORKSPACE/dist/UiautodevDesktop-windows-$env:VERSION.zip" -Force
+          } finally {
+            Pop-Location
+          }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: dist/UiautodevDesktop-windows-*.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [verify, server, macos, windows]
+    if: vars.SKIP_NOTARIZATION != '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download server artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: server
+          path: dist
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: macos
+          path: dist
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: windows
+          path: dist
+
+      - name: Create draft release and generate manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ steps.version.outputs.version }}" \
-            --title "${{ steps.version.outputs.version }}" \
-            --generate-notes
+          set -euo pipefail
+          TAG="$GITHUB_REF_NAME"
+          VERSION="${TAG#v}"
+          ls -lh dist
 
-      - name: Trigger npm publish
-        if: steps.bump.outputs.skip != 'true'
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists, reusing it"
+          else
+            gh release create "$TAG" --draft --generate-notes --title "$TAG"
+          fi
+
+          # 草稿阶段没有发布时间，先只取说明与链接
+          gh release view "$TAG" --json body,url > "$RUNNER_TEMP/release.json"
+          go run ./cmd/release manifest \
+            -dir ./dist \
+            -version "$VERSION" \
+            -tag "$TAG" \
+            -release-json "$RUNNER_TEMP/release.json" \
+            -out ./dist/release.json
+
+      - name: Upload assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh workflow run publish.yml \
-            -f tag="${{ steps.version.outputs.version }}" \
-            --ref master
+          set -euo pipefail
+          gh release upload "$GITHUB_REF_NAME" ./dist/* --clobber
+          gh release edit "$GITHUB_REF_NAME" --draft=false
+
+      - name: Refresh manifest with publish time
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="$GITHUB_REF_NAME"
+          VERSION="${TAG#v}"
+          gh release view "$TAG" --json body,publishedAt,url > "$RUNNER_TEMP/release.json"
+          go run ./cmd/release manifest \
+            -dir ./dist \
+            -version "$VERSION" \
+            -tag "$TAG" \
+            -release-json "$RUNNER_TEMP/release.json" \
+            -out ./dist/release.json
+          gh release upload "$TAG" ./dist/release.json --clobber
+
+      - name: Publish to S3/R2
+        env:
+          S3_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          S3_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # 先传版本目录（含 release.json），最后发布 latest.json，
+          # 保证客户端不会看到资产还没传完的版本。
+          go run ./cmd/release upload \
+            -dir ./dist \
+            -version "${VERSION#v}" \
+            -bucket uiautodev \
+            -latest-key updates/latest.json \
+            -latest-guard-url https://dl.uiauto.dev/updates/latest.json
+
+      - name: Refresh download cache
+        run: curl -fsSL -X POST https://get.uiauto.dev/api/cache/refresh
+
+      - name: Job summary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "## Release $GITHUB_REF_NAME"
+            echo
+            echo "https://github.com/${{ github.repository }}/releases/tag/$GITHUB_REF_NAME"
+            echo
+            echo "### Assets"
+            echo '```'
+            ls -lh dist
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

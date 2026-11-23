@@ -1,0 +1,6 @@
+{
+  "name": "android-only-plugin",
+  "version": "1.0.0",
+  "description": "A plugin that only works on Android",
+  "platforms": ["android"]
+}

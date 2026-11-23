@@ -1,0 +1,32 @@
+fail_fast: true
+repos:
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-symlinks
+      - id: detect-private-key
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.14.0
+    hooks:
+      - id: golangci-lint-full
+        language_version: "1.26.9"
+  - repo: local
+    hooks:
+      - id: go-unit-test
+        name: Run Go unit tests
+        language: system
+        types: [go]
+        pass_filenames: false
+        entry: make test
+      - id: prettier-frontend
+        name: Prettier format frontend
+        language: system
+        types: [svelte]
+        files: ^(frontend/.*)
+        entry: bash -c 'cd frontend && bunx prettier --write "${@/#frontend\//}"' --

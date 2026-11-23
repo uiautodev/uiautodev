@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+        background: #eef0f3;
+        color: #1c1d1f;
+      }
+      .abs {
+        position: absolute;
+      }
+      .statusbar {
+        left: 0;
+        top: 0;
+        width: 1080px;
+        height: 72px;
+        background: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 48px;
+        font-size: 30px;
+        font-weight: 600;
+      }
+      .statusbar .icons {
+        letter-spacing: 6px;
+        font-size: 26px;
+      }
+      .title {
+        left: 0;
+        top: 72px;
+        width: 1080px;
+        height: 128px;
+        background: #ffffff;
+        display: flex;
+        align-items: center;
+        padding: 0 48px;
+        font-size: 48px;
+        font-weight: 700;
+      }
+      .search {
+        left: 48px;
+        top: 216px;
+        width: 984px;
+        height: 120px;
+        background: #e6e8eb;
+        border-radius: 60px;
+        display: flex;
+        align-items: center;
+        padding: 0 48px;
+        font-size: 36px;
+        color: #8a8f98;
+      }
+      .list {
+        left: 48px;
+        top: 384px;
+        width: 984px;
+        height: 720px;
+        background: #ffffff;
+        border-radius: 28px;
+        overflow: hidden;
+      }
+      .row {
+        position: absolute;
+        left: 0;
+        width: 984px;
+        height: 180px;
+        border-bottom: 2px solid #eef0f3;
+      }
+      .row .label {
+        position: absolute;
+        left: 92px;
+        top: 44px;
+        font-size: 40px;
+        font-weight: 600;
+      }
+      .row .sub {
+        position: absolute;
+        left: 92px;
+        top: 102px;
+        font-size: 30px;
+        color: #8a8f98;
+      }
+      .toggle {
+        position: absolute;
+        right: 44px;
+        top: 46px;
+        width: 136px;
+        height: 88px;
+        border-radius: 44px;
+      }
+      .toggle.on {
+        background: #34c759;
+      }
+      .toggle.off {
+        background: #d5d8dc;
+      }
+      .toggle .knob {
+        position: absolute;
+        top: 8px;
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: #ffffff;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+      }
+      .toggle.on .knob {
+        right: 8px;
+      }
+      .toggle.off .knob {
+        left: 8px;
+      }
+      .save {
+        left: 48px;
+        top: 1200px;
+        width: 984px;
+        height: 120px;
+        background: #2f6bff;
+        border-radius: 24px;
+        color: #ffffff;
+        font-size: 42px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .bottomnav {
+        left: 0;
+        top: 1770px;
+        width: 1080px;
+        height: 150px;
+        background: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+      }
+      .bottomnav .item {
+        width: 180px;
+        text-align: center;
+        font-size: 34px;
+        color: #8a8f98;
+      }
+      .bottomnav .item.active {
+        color: #2f6bff;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="abs statusbar"><span>9:41</span><span class="icons">▮▮▮ ⏸</span></div>
+    <div class="abs title">Settings</div>
+    <div class="abs search">Search settings</div>
+
+    <div class="abs list">
+      <div class="row" style="top: 0">
+        <div class="label">Wi-Fi</div>
+        <div class="sub" id="wifi-sub">Connected to Demo-WiFi</div>
+        <div class="toggle on" id="wifi-toggle"><div class="knob"></div></div>
+      </div>
+      <div class="row" style="top: 180px">
+        <div class="label">Bluetooth</div>
+        <div class="sub" id="bt-sub">Off</div>
+        <div class="toggle off" id="bt-toggle"><div class="knob"></div></div>
+      </div>
+      <div class="row" style="top: 360px">
+        <div class="label">Display</div>
+        <div class="sub">Brightness, Dark mode</div>
+      </div>
+      <div class="row" style="top: 540px; border-bottom: none">
+        <div class="label">Sound</div>
+        <div class="sub">Ringtone, Media</div>
+      </div>
+    </div>
+
+    <div class="abs save">Save</div>
+
+    <div class="abs bottomnav">
+      <div class="item">Home</div>
+      <div class="item">Apps</div>
+      <div class="item active">Settings</div>
+    </div>
+
+    <script>
+      const params = new URLSearchParams(location.search);
+      const wifiOn = params.get("wifi") !== "off";
+      const btOn = params.get("bt") === "on";
+      function setToggle(id, on) {
+        const el = document.getElementById(id);
+        el.classList.toggle("on", on);
+        el.classList.toggle("off", !on);
+      }
+      setToggle("wifi-toggle", wifiOn);
+      setToggle("bt-toggle", btOn);
+      document.getElementById("wifi-sub").textContent = wifiOn ? "Connected to Demo-WiFi" : "Off";
+      document.getElementById("bt-sub").textContent = btOn ? "On" : "Off";
+    </script>
+  </body>
+</html>

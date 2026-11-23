@@ -1,0 +1,132 @@
+name: npm Release
+
+# npm 包版本独立于桌面端/服务端，不创建 git tag 或 GitHub Release：版本号以
+# npm/package.json 为准，本 workflow 只在 npm/ 变更时升版本并发布。桌面端/
+# 服务端由 release.yml 在不带 v 前缀的 tag 上构建。
+on:
+  push:
+    branches: [master]
+    paths:
+      - "npm/**"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Explicit npm version (e.g. 0.5.0). Overrides bump."
+        required: false
+      bump:
+        description: "Version bump when version is empty. auto = infer from npm/ conventional commits."
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Skip the version-bump commit so it does not trigger another release.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.head_commit != null &&
+       !contains(github.event.head_commit.message, '[skip release]') &&
+       !startsWith(github.event.head_commit.message, 'chore(npm): release') &&
+       !startsWith(github.event.head_commit.message, 'chore: release v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Install dependencies and run tests
+        working-directory: npm
+        run: |
+          npm ci
+          npm test
+
+      - name: Determine version bump
+        id: bump
+        working-directory: npm
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_INPUT="${{ inputs.version }}"
+          if [ -n "$VERSION_INPUT" ]; then
+            echo "using explicit version: $VERSION_INPUT"
+            exit 0
+          fi
+
+          BUMP="${{ inputs.bump }}"
+          BUMP="${BUMP:-auto}"
+
+          if [ "$BUMP" = "auto" ]; then
+            CURRENT="$(node -p "require('./package.json').version")"
+            BASE_COMMIT="$(git log -1 --format=%H -S "\"version\": \"$CURRENT\"" -- package.json || true)"
+            if [ -n "$BASE_COMMIT" ]; then
+              RANGE="${BASE_COMMIT}..HEAD"
+            else
+              RANGE="HEAD"
+            fi
+            LOG="$(git log "$RANGE" --format='%s%n%b%n---' -- .)"
+
+            if echo "$LOG" | grep -qE 'BREAKING[[:space:]]CHANGE:|^[a-zA-Z]+(\([^)]*\))?!:' ; then
+              BUMP="major"
+            elif echo "$LOG" | grep -qE '^feat(\([^)]*\))?:' ; then
+              BUMP="minor"
+            elif echo "$LOG" | grep -qE '^(fix|perf|revert)(\([^)]*\))?:' ; then
+              BUMP="patch"
+            else
+              echo "No version-worthy changes since the last version bump; skipping release."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+
+      - name: Bump version, commit and push
+        id: version
+        if: steps.bump.outputs.skip != 'true'
+        working-directory: npm
+        shell: bash
+        run: |
+          set -euo pipefail
+          CURRENT="$(node -p "require('./package.json').version")"
+          VERSION_INPUT="${{ inputs.version }}"
+          if [ -n "$VERSION_INPUT" ]; then
+            VERSION_INPUT="${VERSION_INPUT#v}"
+            if [ "$VERSION_INPUT" = "$CURRENT" ]; then
+              echo "Version is already $CURRENT; skipping release."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            npm version "$VERSION_INPUT" --no-git-tag-version >/dev/null
+          else
+            npm version "${{ steps.bump.outputs.bump }}" --no-git-tag-version >/dev/null
+          fi
+
+          VERSION="$(node -p "require('./package.json').version")"
+          cd ..
+          git add npm/package.json npm/package-lock.json
+          git commit -m "chore(npm): release v$VERSION"
+          git push origin HEAD:master
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger npm publish
+        if: steps.version.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run npm-publish.yml --ref master

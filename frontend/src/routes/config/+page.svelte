@@ -2,10 +2,11 @@
   import { onMount, untrack } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
-  import { Button } from "$lib/components/ui/button/index.js";
+  import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import Input from "$lib/components/ui/input/input.svelte";
-  import * as UnderlineTabs from "$lib/components/ui/underline-tabs/index.js";
+  import * as Tabs from "$lib/components/ui/tabs/index.js";
+  import { cn } from "$lib/utils.js";
   import { Bot, Network, Plug, Puzzle, RefreshCw, Scale, Unplug, ArrowUpCircle, ShieldCheck } from "lucide-svelte";
   import { getManagementAuthStatus, loginManagementAuth, setupManagementAuth } from "$lib/api/api.js";
   import { CopyButton } from "$lib/components/ui/copy-button";
@@ -36,6 +37,13 @@
   // unsaved form input and avoids refetching settings on every switch.
   const TABS = ["plugin", "ai", "jev", "mcp", "cluster", "access", "update"] as const;
   let tab = $state<string>("plugin");
+
+  // Keep the original vertical settings navigation: each entry is a tab styled
+  // like the old ghost button, with the active one highlighted.
+  const navItem = cn(
+    buttonVariants({ variant: "ghost" }),
+    "w-full justify-start data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground",
+  );
 
   function tabFromHash(hash: string): string | undefined {
     const name = hash.replace(/^#/, "");
@@ -256,59 +264,61 @@
       </div>
     {:else if status === "unlocked"}
       <div class="max-w-4xl mx-auto">
-        <UnderlineTabs.Root bind:value={tab} class="gap-4">
-          <UnderlineTabs.List aria-label={$t("config.title")}>
-            <UnderlineTabs.Trigger value="plugin">
+        <Tabs.Root bind:value={tab} orientation="vertical" class="flex-row gap-6">
+          <Tabs.List
+            aria-label={$t("config.title")}
+            class="sticky top-0 h-auto w-48 shrink-0 flex-col items-stretch gap-1 self-start rounded-none bg-transparent p-0">
+            <Tabs.Trigger value="plugin" class={navItem}>
               <Puzzle />
               {$t("config.nav.plugin")}
-            </UnderlineTabs.Trigger>
-            <UnderlineTabs.Trigger value="ai">
+            </Tabs.Trigger>
+            <Tabs.Trigger value="ai" class={navItem}>
               <Bot />
               {$t("config.nav.ai")}
-            </UnderlineTabs.Trigger>
-            <UnderlineTabs.Trigger value="jev">
+            </Tabs.Trigger>
+            <Tabs.Trigger value="jev" class={navItem}>
               <Scale />
               {$t("config.nav.jev")}
-            </UnderlineTabs.Trigger>
-            <UnderlineTabs.Trigger value="mcp">
+            </Tabs.Trigger>
+            <Tabs.Trigger value="mcp" class={navItem}>
               <Plug />
               {$t("config.nav.mcp")}
-            </UnderlineTabs.Trigger>
-            <UnderlineTabs.Trigger value="cluster">
+            </Tabs.Trigger>
+            <Tabs.Trigger value="cluster" class={navItem}>
               <Network />
               {$t("config.nav.cluster")}
-            </UnderlineTabs.Trigger>
-            <UnderlineTabs.Trigger value="access">
+            </Tabs.Trigger>
+            <Tabs.Trigger value="access" class={navItem}>
               <ShieldCheck />
               {$t("config.nav.access")}
-            </UnderlineTabs.Trigger>
-            <UnderlineTabs.Trigger value="update">
+            </Tabs.Trigger>
+            <Tabs.Trigger value="update" class={navItem}>
               <ArrowUpCircle />
               {$t("config.nav.update")}
-            </UnderlineTabs.Trigger>
-          </UnderlineTabs.List>
-          <UnderlineTabs.Content value="plugin">
+            </Tabs.Trigger>
+          </Tabs.List>
+          <Tabs.Content value="plugin" class="min-w-0">
             <PluginSettings {token} {pluginDir} onAuthExpired={resetAuth} />
-          </UnderlineTabs.Content>
-          <UnderlineTabs.Content value="ai">
+          </Tabs.Content>
+          <Tabs.Content value="ai" class="min-w-0">
             <AISettings {token} onAuthExpired={resetAuth} />
-          </UnderlineTabs.Content>
-          <UnderlineTabs.Content value="jev">
+          </Tabs.Content>
+          <Tabs.Content value="jev" class="min-w-0">
             <JevSettings {token} onAuthExpired={resetAuth} />
-          </UnderlineTabs.Content>
-          <UnderlineTabs.Content value="mcp">
+          </Tabs.Content>
+          <Tabs.Content value="mcp" class="min-w-0">
             <MCPSettings {token} onAuthExpired={resetAuth} />
-          </UnderlineTabs.Content>
-          <UnderlineTabs.Content value="cluster">
+          </Tabs.Content>
+          <Tabs.Content value="cluster" class="min-w-0">
             <ClusterSettings {token} onAuthExpired={resetAuth} />
-          </UnderlineTabs.Content>
-          <UnderlineTabs.Content value="access">
+          </Tabs.Content>
+          <Tabs.Content value="access" class="min-w-0">
             <AccessSettings {token} onAuthExpired={resetAuth} />
-          </UnderlineTabs.Content>
-          <UnderlineTabs.Content value="update">
+          </Tabs.Content>
+          <Tabs.Content value="update" class="min-w-0">
             <UpdateSettings />
-          </UnderlineTabs.Content>
-        </UnderlineTabs.Root>
+          </Tabs.Content>
+        </Tabs.Root>
       </div>
     {/if}
   </main>

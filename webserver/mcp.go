@@ -7,11 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/uiautodev/uiautodev/webserver/device"
 	"image/png"
 	"io"
 	"log"
 	"net/http"
-	"github.com/uiautodev/uiautodev/webserver/device"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -419,10 +419,13 @@ func mcpSSEHandler(sse, streamable http.Handler) http.Handler {
 }
 
 func buildSSEServer(disableDeviceListing bool) *http.ServeMux {
-	mcpServer := server.NewMCPServer("Mobile UI Automation", "0.0.1")
+	gate := newMCPToolGate()
+	mcpServer := server.NewMCPServer("Mobile UI Automation", "0.0.1",
+		server.WithToolHandlerMiddleware(gate.middleware()))
 
 	toolsOrder := []string{}
 	addTool := func(tool mcp.Tool, handler server.ToolHandlerFunc) {
+		gate.register(tool)
 		mcpServer.AddTool(tool, handler)
 		toolsOrder = append(toolsOrder, tool.Name)
 	}
@@ -448,6 +451,8 @@ func buildSSEServer(disableDeviceListing bool) *http.ServeMux {
 			),
 		), mcpListDevicesHandler)
 	}
+
+	registerMCPPresenceTools(addTool, deviceIDOption)
 
 	addTool(mcp.NewTool("get_window_size",
 		mcp.WithReadOnlyHintAnnotation(true),
@@ -614,6 +619,8 @@ func buildSSEServer(disableDeviceListing bool) *http.ServeMux {
 		// Propagate the original query (including ?token=) to the message
 		// endpoint so token-in-URL clients stay authenticated on POST.
 		server.WithAppendQueryToMessageEndpoint(),
+		// Copy the resolved identity into the context of tool handlers.
+		server.WithSSEContextFunc(mcpContextWithIdentity),
 	)
 
 	// Modern streamable HTTP transport (MCP 2025-03-26), served at /mcp/http.
@@ -623,6 +630,7 @@ func buildSSEServer(disableDeviceListing bool) *http.ServeMux {
 	streamableServer := server.NewStreamableHTTPServer(
 		mcpServer,
 		server.WithEndpointPath("/mcp/http"),
+		server.WithHTTPContextFunc(mcpContextWithIdentity),
 	)
 
 	mux := http.NewServeMux()

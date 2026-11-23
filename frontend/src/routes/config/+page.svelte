@@ -5,7 +5,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import Input from "$lib/components/ui/input/input.svelte";
-  import { Bot, Network, Plug, Puzzle, RefreshCw, Scale, Unplug, ArrowUpCircle } from "lucide-svelte";
+  import { Bot, Network, Plug, Puzzle, RefreshCw, Scale, Unplug, ArrowUpCircle, ShieldCheck } from "lucide-svelte";
   import { getManagementAuthStatus, loginManagementAuth, setupManagementAuth } from "$lib/api/api.js";
   import { CopyButton } from "$lib/components/ui/copy-button";
   import { t } from "svelte-i18n";
@@ -15,7 +15,9 @@
   import JevSettings from "$lib/components/settings/JevSettings.svelte";
   import MCPSettings from "$lib/components/settings/MCPSettings.svelte";
   import ClusterSettings from "$lib/components/settings/ClusterSettings.svelte";
+  import AccessSettings from "$lib/components/settings/AccessSettings.svelte";
   import UpdateSettings from "$lib/components/settings/UpdateSettings.svelte";
+  import { managementAuth } from "$lib/stores/management-auth.svelte";
 
   let status = $state<"loading" | "locked" | "unlocked">("loading");
   let needSetup = $state(false);
@@ -26,7 +28,7 @@
   let pluginDir = $state("");
   let submitting = $state(false);
 
-  let token = $state("");
+  let token = $state(managementAuth.token);
 
   let anchorRaf = 0;
 
@@ -77,6 +79,7 @@
     jev: "config-jev-section",
     mcp: "config-mcp-section",
     cluster: "config-cluster-section",
+    access: "config-access-section",
     update: "config-update-section",
   };
 
@@ -117,10 +120,17 @@
       if (auth.auth_required === false) {
         // Trusted environment (desktop): no password needed.
         token = "local";
+        managementAuth.token = token;
         status = "unlocked";
         return;
       }
       configFile = auth.config_file ?? "";
+      if (managementAuth.token) {
+        // Reuse the session unlocked earlier in this SPA session.
+        token = managementAuth.token;
+        status = "unlocked";
+        return;
+      }
       needSetup = !auth.initialized;
       if (needSetup) {
         suggestedPassword = auth.suggested_password ?? "";
@@ -141,6 +151,7 @@
     authError = "";
     try {
       token = await setupManagementAuth(passwordInput);
+      managementAuth.token = token;
       passwordInput = "";
       status = "unlocked";
     } catch (e) {
@@ -162,6 +173,7 @@
     authError = "";
     try {
       token = await loginManagementAuth(passwordInput);
+      managementAuth.token = token;
       passwordInput = "";
       status = "unlocked";
     } catch (e) {
@@ -189,6 +201,7 @@
 
   function resetAuth() {
     token = "";
+    managementAuth.token = "";
     status = "locked";
     needSetup = false;
     authError = $t("config.expired");
@@ -330,6 +343,12 @@
                 </Button>
               </li>
               <li>
+                <Button variant="ghost" class="w-full justify-start" onclick={() => navigateToAnchor("access")}>
+                  <ShieldCheck />
+                  {$t("config.nav.access")}
+                </Button>
+              </li>
+              <li>
                 <Button variant="ghost" class="w-full justify-start" onclick={() => navigateToAnchor("update")}>
                   <ArrowUpCircle />
                   {$t("config.nav.update")}
@@ -352,6 +371,9 @@
             </section>
             <section id="config-cluster-section" class="scroll-mt-16">
               <ClusterSettings {token} onAuthExpired={resetAuth} />
+            </section>
+            <section id="config-access-section" class="scroll-mt-16">
+              <AccessSettings {token} onAuthExpired={resetAuth} />
             </section>
             <section id="config-update-section" class="scroll-mt-16">
               <UpdateSettings />

@@ -22,6 +22,11 @@ import type {
   ClusterSlaveUpdate,
   UpdateInfo,
   UpdateProgress,
+  Me,
+  Occupancy,
+  DeviceAccessMode,
+  AccessConfig,
+  AccessConfigResponse,
 } from "./schemas";
 
 export type DumpBackend = "yadb" | "uiautomator";
@@ -389,8 +394,11 @@ export async function rotateClusterSlaveToken(token: string, id: string): Promis
 
 // --- MCP ---
 
-export async function getMCPToken(): Promise<string> {
-  const res = await api.get<{ token: string }>("/api/v1/mcp/token");
+export async function getMCPToken(managementToken = ""): Promise<string> {
+  const res = await api.get<{ token: string }>(
+    "/api/v1/mcp/token",
+    managementToken ? { headers: { Authorization: `Bearer ${managementToken}` } } : {},
+  );
   return res.data.token;
 }
 
@@ -478,6 +486,67 @@ export async function postJevDecision(params: Record<string, any>): Promise<any>
     throw new Error(`jev request failed (HTTP ${res.status}): ${text}`);
   }
   return res.json();
+}
+
+// --- Identity and presence ---
+
+export async function getMe(): Promise<Me> {
+  const res = await api.get<Me>("/api/v1/me");
+  return res.data;
+}
+
+export async function getPresence(): Promise<Record<string, Occupancy>> {
+  const res = await api.get<{ devices: Record<string, Occupancy> }>("/api/v1/presence");
+  return res.data.devices ?? {};
+}
+
+export async function putDevicePresence(
+  deviceId: string,
+  mode: DeviceAccessMode = "control",
+  takeover = false,
+): Promise<Occupancy> {
+  const res = await api.put<Occupancy>(`/api/v1/devices/${encodeURIComponent(deviceId)}/presence`, {
+    mode,
+    takeover,
+  });
+  return res.data;
+}
+
+export async function deleteDevicePresence(deviceId: string): Promise<void> {
+  await api.delete(`/api/v1/devices/${encodeURIComponent(deviceId)}/presence`);
+}
+
+/**
+ * Release a session when the page is unloading. `fetch` with keepalive (unlike
+ * axios) survives the navigation.
+ */
+export function deleteDevicePresenceKeepalive(deviceId: string): void {
+  void fetch(`${baseURL}/api/v1/devices/${encodeURIComponent(deviceId)}/presence`, {
+    method: "DELETE",
+    credentials: "same-origin",
+    keepalive: true,
+  }).catch(() => {});
+}
+
+export async function putPresenceBatch(
+  devices: Record<string, { mode: DeviceAccessMode; takeover?: boolean }>,
+): Promise<Record<string, Occupancy>> {
+  const res = await api.put<{ devices: Record<string, Occupancy> }>("/api/v1/presence", { devices });
+  return res.data.devices ?? {};
+}
+
+export async function getAccessConfig(token: string): Promise<AccessConfigResponse> {
+  const res = await api.get<AccessConfigResponse>("/api/v1/access/config", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+}
+
+export async function setAccessConfig(token: string, config: AccessConfig): Promise<AccessConfigResponse> {
+  const res = await api.put<AccessConfigResponse>("/api/v1/access/config", config, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
 }
 
 // Wails 桌面环境的前端由 AssetServer 提供（与 API 不同源），需用绝对地址。

@@ -1,6 +1,6 @@
 # 设备占用、观察者与第三方身份接入设计
 
-> 状态：设计稿（尚未实现）
+> 状态：已实现（`webserver/access_config.go`、`webserver/identity.go`、`webserver/presence.go`）
 > 日期：2026-10-30
 > 范围：`webserver/`、`cmd/uiautodev-server/`、`frontend/`、文档
 
@@ -85,7 +85,9 @@ type Identity struct {
 |---|---|
 | 浏览器 | `ua_sid` cookie（首次访问生成 32 hex，HttpOnly、SameSite=Lax、HTTPS 时 Secure、1 年） |
 | 带 Bearer 的 API/MCP | `sha256(token)` 前 16 位 |
-| 无 cookie 的脚本 | `ip + hash(User-Agent)` 兜底，保证同一客户端身份稳定 |
+| 无 cookie 的脚本 | `hash(ip + User-Agent + Identity.ID)` 兜底，保证同一客户端身份稳定 |
+
+兜底值包含已解析的身份：同一个反代后面或同一台机器上的两个登录用户往往 IP 和 User-Agent 完全相同，只有把身份算进 hash，两个人才不会共用同一个 presence 会话（否则后到者会直接接管前者的设备）。匿名请求没有身份可用，仍按 `ip + User-Agent` 计算。
 
 匿名身份按 **cookie** 区分，因此：
 
@@ -146,6 +148,8 @@ type PresenceAccessConfig struct {
     AllowObservers bool           `json:"allow_observers"`
 }
 ```
+
+`AccessConfig` / `PresenceAccessConfig` 实现了 `UnmarshalJSON`：缺失的字段取默认值，只有显式写出的值（包括 `false`）才覆盖默认。否则像 `{"access":{"auth":{...}}}` 这样的配置会让 `enabled` / `allow_observers` 落到 bool 零值 `false`，静默关闭占用功能。
 
 ### 5.3 枚举
 
@@ -243,6 +247,7 @@ const (
 - `signout_url`：空、站内相对路径或 http(s) URL。
 - 枚举值必须在白名单内。
 - `require_identity=true` 且 `trusted_proxies` 为空时允许保存，但设置页显示警告（此时只有已登录用户能通过）。
+- `require_identity` 只拦截 `/api/`、`/proxy/`、`/stream/` 请求（`/api/v1/me` 除外）：前端静态资源仍可加载，`/mcp/` 由 MCP token 自行认证，否则合法 MCP 客户端会被提前 401。
 
 ### 5.8 设置界面
 
@@ -284,6 +289,7 @@ type presenceSession struct {
     Remote   string
     UA       string
     Kick     func(reason string) // WS 流注册的踢出回调
+    Streams  int                 // 已注册的 WS 流数量，>0 时不参与空闲回收
 }
 
 type evictionRecord struct {
@@ -311,7 +317,7 @@ type evictionRecord struct {
 
 1. 设备维度 HTTP 请求：`/api/v1/devices/:id/*`、`/stream/devices/:id/*`、`/proxy/devices/:id/*` 命中后刷新 `LastSeen`。
 2. 显式心跳：设备页每 30 秒 `PUT /api/v1/devices/:id/presence`；多设备页用批量 `PUT /api/v1/presence`，不用 N 个请求。
-3. WebSocket：流建立、收到客户端消息、ping 时刷新；被抢占时通过 `Kick` 主动关闭（关闭码 4001，reason 带抢占者名字）。
+3. WebSocket：流建立和断开时刷新 `LastSeen`；有流注册期间会话不参与空闲回收（持续出画面但没有任何 HTTP 请求也算活跃）。被抢占或 `DELETE .../presence` 释放时通过 `Kick` 主动关闭（关闭码 4001，reason 带原因）。
 
 页面不可见（`visibilitychange`）时停止心跳，让空闲超时自然生效。
 
@@ -336,7 +342,7 @@ type evictionRecord struct {
 
 - 清扫协程每 2 秒运行一次，空闲阈值从 AccessConfig 实时读取。
 - 清理顺序：过期会话 → 空设备 → 触发 `onIdle` → 清理过期 `evicted` 记录。
-- 回调在锁外执行，避免死锁。
+- 回调在锁外执行，避免死锁；调用前会在锁内再次确认设备仍然为空，避免刚被重新获取的会话被这次释放连带断开。
 
 ## 7. 冲突策略
 
@@ -371,7 +377,7 @@ type evictionRecord struct {
 |---|---|---|
 | `GET /devices/:id`、`GET/PUT/DELETE /meta` | ✅ | ✅ |
 | `screenshot`、`screens`、`uitree`、`window/size`、`encoders` | ✅ | ✅ |
-| `stream/.../scrcpy`、`mjpeg`、`frames` | ✅ | ✅ |
+| `stream/.../scrcpy`、`mjpeg`、`frames` | ✅ 只出画面，注入的输入事件被丢弃 | ✅ |
 | `actions/tap`、`swipe`、`press_key`、`input_text`、`clear_text` | ❌ 403 `read_only` | ✅ |
 | `POST /shell` | ❌ 403 | ✅ |
 | `GET /connect` | ❌ 403 | ✅ |
@@ -484,7 +490,7 @@ type Notice struct {
 
 - 每路画面标题旁显示头像叠层与角色边框。
 - 被占用时显示遮罩（`can_takeover` 时提供抢占按钮），不持续拉流。
-- 心跳合并为一次批量 `PUT /api/v1/presence`。
+- 心跳合并为一次批量 `PUT /api/v1/presence`，按设备记住用户选择的模式：观察中的设备继续用 `view` 续期，其余设备保持 `control`，避免 30 秒心跳把正在观看的画面换回 `busy` 占位；点开设备时会重新申请 `control`。
 
 ### 10.6 前端模块
 
@@ -497,7 +503,7 @@ type Notice struct {
 
 - 默认不信任任何 `X-Forwarded-*`；只有对端 IP 在 `trusted_proxies` 内才解析身份。
 - 建议部署方式：uiautodev 只监听 `127.0.0.1`，由 oauth2-proxy 对外。
-- `require_identity=true` 时拒绝匿名请求；恢复方式是编辑 `config.json` 后重启。
+- `require_identity=true` 时拒绝匿名的 API / 设备流请求；恢复方式是编辑 `config.json` 后重启。
 - `ua_sid` 只用于区分匿名会话，本身不是认证凭证。
 - 设置接口受管理会话保护（`managementAuthMiddleware`），桌面版保持现有的免密行为。
 - 配置校验失败不覆盖原配置；写入沿用现有 `0600` 权限。
@@ -555,8 +561,8 @@ type Notice struct {
   - 非可信来源的 `X-Forwarded-*` 被忽略；
   - 可信来源正确解析 user/email/groups/avatar；
   - 同一 cookie 匿名身份稳定，不同 cookie 不同身份；
-  - 无 cookie 脚本按 IP+UA 稳定；
-  - `require_identity=true` 时匿名 401。
+  - 无 cookie 脚本按 IP+UA+Identity 稳定；
+  - `require_identity=true` 时匿名 401，MCP token 与静态资源不受影响；
 - 占用：
   - 同一身份多会话 `shared`；
   - 不同匿名浏览器冲突；
@@ -601,3 +607,11 @@ type Notice struct {
 - 抢占历史审计日志；
 - 基于组/角色的权限（例如只允许管理员抢占）；
 - 通知渠道接入（邮件 / IM）。
+
+## 16. 实现备注
+
+- 所有新接口沿用现有 `{"code","message","data"}` 响应包裹，`data` 内才是本文档描述的结构。
+- `/api/v1/devices/:id/meta` 属于被动请求：只在已有会话时续期，不会因为修改备注而占用设备。
+- 浏览器首次导航（`Accept: text/html`）会生成 32 位随机 `ua_sid` 并写入 cookie；无 cookie 的脚本请求继续按 `IP + User-Agent` 哈希兜底，保证同一脚本身份稳定。
+- 空闲超时直接释放设备；只有显式 `DELETE .../presence` 才走 30 秒宽限期。
+- MCP 使用同一个 `mcp_token` 时身份为 `mcp:admin`（显示名 `MCP`），所有 MCP 客户端共享该身份；新增 `acquire_device` / `release_device` 工具，其他设备工具在读/控制两类上自动申请会话，语义与 HTTP 一致。

@@ -53,7 +53,8 @@
       "jev": "Jev",
       "mcp": "MCP",
       "cluster": "远程节点",
-      "update": "更新"
+      "update": "更新",
+      "access": "访问与占用"
     },
     "update": {
       "title": "应用更新",
@@ -78,7 +79,9 @@
     "generate": "随机生成",
     "emptyHint": "留空时：MCP 完全开放；启用 -auth 时启动会自动生成 token。修改后立即生效，无需重启。",
     "cardNoTokenHint": "未配置 MCP token，MCP 接口当前完全开放。请到设置页配置 token，或使用 -auth 启动以自动生成。",
-    "piHint": "写入 .pi/mcp.json（项目）或 ~/.pi/agent/mcp.json（全局）；配置内容如下。"
+    "piHint": "写入 .pi/mcp.json（项目）或 ~/.pi/agent/mcp.json（全局）；配置内容如下。",
+    "tokenLockedHint": "MCP Token 需要管理密码。请先在设置页解锁，再回到本页查看。",
+    "openSettings": "去设置页"
   },
   "cluster": {
     "title": "远程节点",
@@ -272,7 +275,8 @@
       "product": "产品",
       "remark": "备注",
       "status": "状态",
-      "actions": "操作"
+      "actions": "操作",
+      "occupancy": "占用"
     },
     "status": {
       "offline": "离线",
@@ -412,5 +416,71 @@
       "cancel": "取消",
       "apply": "应用"
     }
+  },
+  "presence": {
+    "state": {
+      "free": "空闲",
+      "mine": "我在使用",
+      "shared": "共享中",
+      "viewing": "观察中",
+      "busy": "使用中",
+      "preempted": "已被抢占"
+    },
+    "observers": "观察者",
+    "busyTitle": "设备使用中",
+    "busyDesc": "你可以等待对方释放、仅观察，或直接抢占。",
+    "inUseBy": "当前由 {name} 控制",
+    "freeHint": "空闲超时后会自动释放设备。",
+    "cancel": "返回设备列表",
+    "observeOnly": "仅观察",
+    "takeover": "抢占设备",
+    "readOnly": "只读模式",
+    "readOnlyDesc": "可以查看画面，但不能操作设备。",
+    "requestControl": "接管控制",
+    "preemptedToast": "{name} 抢占了这台设备。",
+    "someone": "其他用户",
+    "acquiring": "正在获取设备...",
+    "acquireError": "获取设备失败"
+  },
+  "me": {
+    "signOut": "退出登录",
+    "authSource": {
+      "proxy": "代理认证",
+      "login": "登录",
+      "anonymous": "匿名",
+      "mcp": "MCP Token"
+    }
+  },
+  "access": {
+    "title": "访问与占用",
+    "desc": "配置可信代理身份与设备占用行为。",
+    "identitySection": "身份",
+    "trustedProxies": "可信代理",
+    "trustedProxiesPlaceholder": "127.0.0.1/32\n::1/128",
+    "trustedProxiesHint": "每行一个 IP 或 CIDR。只有来自这些地址的请求才会解析 X-Forwarded-* 头。",
+    "requireIdentity": "要求身份",
+    "requireIdentityHint": "拒绝匿名 API 请求。",
+    "signoutUrl": "退出登录地址",
+    "signoutUrlHint": "可选，例如 /oauth2/sign_out。留空则不显示退出登录。",
+    "requireIdentityWarning": "已要求身份但未配置可信代理：匿名浏览器将无法使用 API。请编辑 config.json 后重启恢复。",
+    "presenceSection": "设备占用",
+    "presenceEnabled": "启用占用管理",
+    "presenceEnabledHint": "记录每台设备的占用者，并在空闲后自动释放。",
+    "idleTimeout": "空闲释放",
+    "idle": {
+      "1m": "1 分钟",
+      "5m": "5 分钟",
+      "10m": "10 分钟",
+      "30m": "30 分钟",
+      "1h": "1 小时"
+    },
+    "conflictPolicy": "冲突策略",
+    "policy": {
+      "preempt": "允许抢占",
+      "exclusive": "不允许抢占"
+    },
+    "allowObservers": "允许观察者",
+    "allowObserversHint": "其他用户可以只读查看画面与 UI 树。",
+    "configFile": "配置文件："
   }
 }

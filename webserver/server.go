@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
 	"github.com/uiautodev/uiautodev/version"
 	"github.com/uiautodev/uiautodev/webserver/cluster"
 	"github.com/uiautodev/uiautodev/webserver/device"
@@ -46,6 +47,9 @@ type APIDevice struct {
 	// cluster.Device.Chain); it is used to display nested aggregation and to
 	// stop cycles.
 	Chain []string `json:"chain,omitempty"`
+	// Occupancy is the device presence snapshot for the requesting identity.
+	// It is omitted when presence management is disabled.
+	Occupancy *Occupancy `json:"occupancy,omitempty"`
 }
 
 func deviceTypeForPlatform(platform string) (device.DeviceType, bool) {
@@ -104,6 +108,7 @@ func buildDeviceList(c echo.Context, platformFilter string, deviceType device.De
 			if meta, ok := metas[id]; ok {
 				dev.Meta = &meta
 			}
+			applyOccupancy(c, &dev)
 			out = append(out, dev)
 		}
 	}
@@ -127,10 +132,25 @@ func buildDeviceList(c echo.Context, platformFilter string, deviceType device.De
 			if meta, ok := metas[remote.ID]; ok {
 				dev.Meta = &meta
 			}
+			applyOccupancy(c, &dev)
 			out = append(out, dev)
 		}
 	}
 	return out, nil
+}
+
+// applyOccupancy attaches the presence snapshot of a device for the requesting
+// identity. It is a no-op when presence management is disabled.
+func applyOccupancy(c echo.Context, dev *APIDevice) {
+	if !getAccessConfig().Presence.Enabled {
+		return
+	}
+	identity, ok := identityFrom(c)
+	if !ok {
+		return
+	}
+	occ := presenceManagerInstance.Occupancy(dev.ID, &identity.Identity, identity.SessionID)
+	dev.Occupancy = &occ
 }
 
 func devicesHandler(c echo.Context) error {
@@ -160,7 +180,7 @@ func devicesHandler(c echo.Context) error {
 
 func deviceConnectHandler(c echo.Context) error {
 	deviceId := c.Param("device_id")
-	dev, err := deviceManagerInstance.GetDevice(deviceId, 1*time.Hour)
+	dev, err := deviceManagerInstance.GetDevice(deviceId, deviceCacheTimeout())
 	if err != nil {
 		return c.JSONPretty(http.StatusBadRequest, APIResponse{
 			Code:    400,
@@ -192,7 +212,7 @@ func deviceConnectHandler(c echo.Context) error {
 
 func deviceDeleteHandler(c echo.Context) error {
 	deviceId := c.Param("device_id")
-	deviceManagerInstance.ReleaseDevice(deviceId)
+	presenceManagerInstance.ReleaseDevice(deviceId)
 	return c.JSONPretty(http.StatusOK, APIResponse{
 		Code:    0,
 		Message: "ok",
@@ -226,6 +246,7 @@ func deviceInfoHandler(c echo.Context) error {
 					apiDevice.Meta = &meta
 				}
 			}
+			applyOccupancy(c, &apiDevice)
 			return c.JSONPretty(http.StatusOK, APIResponse{Code: 0, Message: "ok", Data: apiDevice}, "  ")
 		}
 	}
@@ -259,6 +280,7 @@ func deviceInfoHandler(c echo.Context) error {
 			apiDevice.Meta = &meta
 		}
 	}
+	applyOccupancy(c, &apiDevice)
 
 	return c.JSONPretty(http.StatusOK, APIResponse{
 		Code:    0,
@@ -421,18 +443,32 @@ func CreateEchoServerWithConfig(config ServerConfig) *echo.Echo {
 	// Setup middleware (recover, logger, jwt cookie auth)
 	setupMiddleware(e, config)
 
+	// Identity resolution runs after the optional JWT auth so it can reuse the
+	// username it sets, then presence auto-sessions device requests.
+	e.Use(identityMiddleware())
+	device.SetStreamConnHook(RegisterStreamConn)
+	device.SetStreamReadOnlyHook(StreamReadOnly)
+	e.Use(presenceMiddleware(presenceManagerInstance))
+
 	// Routes
 	e.GET("/healthz", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]interface{}{"ok": true, "ts": time.Now().Unix()})
 	})
 	e.GET("/api/v1/config", configHandler(config))
+	e.GET("/api/v1/me", meHandler)
+	e.GET("/api/v1/access/config", accessConfigGetHandler, managementAuthMiddleware(config))
+	e.PUT("/api/v1/access/config", accessConfigPutHandler, managementAuthMiddleware(config))
+	e.GET("/api/v1/presence", presenceSnapshotHandler)
+	e.PUT("/api/v1/presence", presenceBatchPutHandler)
+	e.PUT("/api/v1/devices/:device_id/presence", presencePutHandler)
+	e.DELETE("/api/v1/devices/:device_id/presence", presenceDeleteHandler)
 	e.GET("/api/v1/locale", localeGetHandler())
 	e.PUT("/api/v1/locale", localePutHandler(config))
 	e.GET("/api/v1/version/latest", versionLatestHandler())
 	e.GET("/api/v1/update", updateInfoHandler())
 	e.POST("/api/v1/update", updateApplyHandler(), managementAuthMiddleware(config))
 	e.GET("/api/v1/update/status", updateStatusHandler())
-	e.GET("/api/v1/mcp/token", mcpTokenGetHandler)
+	e.GET("/api/v1/mcp/token", mcpTokenGetHandler, managementAuthMiddleware(config))
 	e.PUT("/api/v1/mcp/token", mcpTokenSetHandler, managementAuthMiddleware(config))
 	if !config.DisableDeviceListing {
 		e.GET("/api/v1/devices", devicesHandler)

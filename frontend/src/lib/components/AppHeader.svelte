@@ -7,6 +7,7 @@
   import LanguageSwitcher from "$lib/components/ui/language-switcher/language-switcher.svelte";
   import ThemeToggle from "$lib/components/ui/theme-toggle/theme-toggle.svelte";
   import UpdateButton from "$lib/components/ui/update-button/update-button.svelte";
+  import UserMenu from "$lib/components/UserMenu.svelte";
 
   let { active = "" }: { active?: string } = $props();
 </script>
@@ -38,6 +39,7 @@
       </Button>
     </div>
     <div class="ml-auto flex items-center gap-2">
+      <UserMenu />
       <UpdateButton />
       <LanguageSwitcher />
       <ThemeToggle />

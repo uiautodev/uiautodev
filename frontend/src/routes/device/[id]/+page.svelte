@@ -25,14 +25,23 @@
   import * as Alert from "$lib/components/ui/alert/index.js";
   import Spinner from "$lib/components/ui/spinner/spinner.svelte";
   import { ScreenMode, setScreenMode } from "$lib/stores/screen-mode.svelte";
+  import DeviceGuard from "$lib/components/device/DeviceGuard.svelte";
+  import PresenceBadge from "$lib/components/device/PresenceBadge.svelte";
+  import { identityStore } from "$lib/stores/identity.svelte";
+  import UserMenu from "$lib/components/UserMenu.svelte";
+  import type { DeviceAccessMode, Occupancy } from "$lib/api/schemas.js";
 
   const deviceId = page.params.id as string;
   const title = page.url.searchParams.get("title") ?? deviceId;
+  const initialMode: DeviceAccessMode = page.url.searchParams.get("mode") === "view" ? "view" : "control";
 
   // 从 store 派生 device
   const device = $derived(deviceStore.deviceInfo);
   const isVertical = $derived(layoutStore.value === "vertical");
   const isHorizontal = $derived(!isVertical);
+  let presence = $state<Occupancy | null>(null);
+  const readOnly = $derived(presence?.state === "viewing");
+  const mineId = $derived(identityStore.me?.id ?? "");
 
   function goBack() {
     goto("/");
@@ -88,6 +97,9 @@
               <CopyButton text={device?.props.serial ?? ""} />
             </span>
             <DeviceRemark {deviceId} meta={device?.meta} onsaved={handleMetaSaved} />
+            {#if presence}
+              <PresenceBadge occupancy={presence} {mineId} />
+            {/if}
             {#if device?.platform === "ios"}
               <DeviceIosSettings {deviceId} meta={device?.meta} onsaved={handleMetaSaved} />
             {/if}
@@ -96,6 +108,7 @@
       </NavigationMenu.List>
     </NavigationMenu.Root>
     <div class="ml-auto pr-2 flex items-center gap-1">
+      <UserMenu compact />
       <UpdateButton />
       <LanguageSwitcher />
       <Tooltip.Root>
@@ -124,44 +137,74 @@
       <ThemeToggle />
     </div>
   </header>
-  <main class="flex-1 flex overflow-hidden border w-full h-full">
-    {#if deviceStore.loading}
-      <div class="flex flex-col items-center justify-center w-full gap-4">
-        <Spinner class="size-8" />
-        <span class="text-muted-foreground text-sm">连接中...</span>
-      </div>
-    {:else if deviceStore.error}
-      <div class="p-4 w-full">
-        <Alert.Root variant="destructive">
-          <Alert.Title>获取设备信息失败</Alert.Title>
-          <Alert.Description>{deviceStore.error}</Alert.Description>
-        </Alert.Root>
-      </div>
-    {:else}
-      <Resizable.PaneGroup direction={layoutStore.value}>
-        <Resizable.Pane defaultSize={isHorizontal ? 30 : 40}>
-          {#if device?.platform === "android"}
-            <ScreenAndroid {deviceId} showRightBar={isHorizontal} navInHeader={isVertical} class="h-full flex-1" />
-          {/if}
-          {#if device?.platform === "ios"}
-            <ScreenIos {deviceId} showRightBar={isHorizontal} navInHeader={isVertical} class="h-full flex-1" />
-          {/if}
-          {#if device?.platform === "harmony"}
-            <ScreenHarmony {deviceId} showRightBar={isHorizontal} navInHeader={isVertical} class="h-full flex-1" />
-          {/if}
-          {#if device?.platform === "demo"}
-            <ScreenDemo {deviceId} showRightBar={isHorizontal} navInHeader={isVertical} class="h-full flex-1" />
-          {/if}
-        </Resizable.Pane>
-        <Resizable.Handle withHandle />
-        <Resizable.Pane>
-          <div class="flex-1 px-2 pt-2 h-full">
-            {#if device?.platform}
-              <CardsContainer {deviceId} platform={device.platform} class="h-full" />
+  <DeviceGuard {deviceId} {initialMode} onstate={(next) => (presence = next)}>
+    <main class="flex-1 flex overflow-hidden border w-full h-full">
+      {#if deviceStore.loading}
+        <div class="flex flex-col items-center justify-center w-full gap-4">
+          <Spinner class="size-8" />
+          <span class="text-muted-foreground text-sm">连接中...</span>
+        </div>
+      {:else if deviceStore.error}
+        <div class="p-4 w-full">
+          <Alert.Root variant="destructive">
+            <Alert.Title>获取设备信息失败</Alert.Title>
+            <Alert.Description>{deviceStore.error}</Alert.Description>
+          </Alert.Root>
+        </div>
+      {:else}
+        <Resizable.PaneGroup direction={layoutStore.value}>
+          <Resizable.Pane defaultSize={isHorizontal ? 30 : 40}>
+            {#if device?.platform === "android"}
+              <ScreenAndroid
+                {deviceId}
+                showRightBar={isHorizontal}
+                navInHeader={isVertical}
+                control={!readOnly}
+                class="h-full flex-1" />
             {/if}
-          </div>
-        </Resizable.Pane>
-      </Resizable.PaneGroup>
-    {/if}
-  </main>
+            {#if device?.platform === "ios"}
+              <ScreenIos
+                {deviceId}
+                showRightBar={isHorizontal}
+                navInHeader={isVertical}
+                control={!readOnly}
+                class="h-full flex-1" />
+            {/if}
+            {#if device?.platform === "harmony"}
+              <ScreenHarmony
+                {deviceId}
+                showRightBar={isHorizontal}
+                navInHeader={isVertical}
+                control={!readOnly}
+                class="h-full flex-1" />
+            {/if}
+            {#if device?.platform === "demo"}
+              <ScreenDemo
+                {deviceId}
+                showRightBar={isHorizontal}
+                navInHeader={isVertical}
+                control={!readOnly}
+                class="h-full flex-1" />
+            {/if}
+          </Resizable.Pane>
+          <Resizable.Handle withHandle />
+          <Resizable.Pane>
+            <div class="relative flex-1 px-2 pt-2 h-full">
+              {#if device?.platform}
+                <CardsContainer {deviceId} platform={device.platform} class="h-full" />
+              {/if}
+              {#if readOnly}
+                <div class="absolute inset-0 flex items-center justify-center bg-background/60">
+                  <span
+                    class="rounded-md bg-amber-100 px-3 py-1.5 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                    {$t("presence.readOnly")}
+                  </span>
+                </div>
+              {/if}
+            </div>
+          </Resizable.Pane>
+        </Resizable.PaneGroup>
+      {/if}
+    </main>
+  </DeviceGuard>
 </div>

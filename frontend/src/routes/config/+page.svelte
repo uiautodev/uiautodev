@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { onDestroy, onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
-  import { Button } from "$lib/components/ui/button/index.js";
+  import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import Input from "$lib/components/ui/input/input.svelte";
+  import * as Tabs from "$lib/components/ui/tabs/index.js";
+  import { cn } from "$lib/utils.js";
   import { Bot, Network, Plug, Puzzle, RefreshCw, Scale, Unplug, ArrowUpCircle, ShieldCheck } from "lucide-svelte";
   import { getManagementAuthStatus, loginManagementAuth, setupManagementAuth } from "$lib/api/api.js";
   import { CopyButton } from "$lib/components/ui/copy-button";
@@ -30,87 +32,40 @@
 
   let token = $state(managementAuth.token);
 
-  let anchorRaf = 0;
+  // Tab ids double as URL hashes so existing deep links keep working. Panels
+  // stay mounted (bits-ui only hides the inactive ones), which preserves
+  // unsaved form input and avoids refetching settings on every switch.
+  const TABS = ["plugin", "ai", "jev", "mcp", "cluster", "access", "update"] as const;
+  let tab = $state<string>("plugin");
 
-  function stopAnchorTracking() {
-    if (anchorRaf) {
-      cancelAnimationFrame(anchorRaf);
-      anchorRaf = 0;
-    }
-  }
+  // Keep the original vertical settings navigation: each entry is a tab styled
+  // like the old ghost button, with the active one highlighted.
+  const navItem = cn(
+    buttonVariants({ variant: "ghost" }),
+    "w-full justify-start data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground",
+  );
 
-  // applyAnchor scrolls the target into view and keeps it pinned while the
-  // settings panels load their content asynchronously, which changes the layout
-  // height after the first scroll (otherwise the section drifts out of view).
-  function applyAnchor(id: string) {
-    stopAnchorTracking();
-    const container = document.querySelector("main");
-    let lastHeight = -1;
-    let stableFrames = 0;
-    let frames = 0;
-    const tick = () => {
-      const el = document.getElementById(id);
-      if (!el || !container) {
-        anchorRaf = 0;
-        return;
-      }
-      el.scrollIntoView({ block: "start" });
-      if (container.scrollHeight === lastHeight) {
-        stableFrames++;
-      } else {
-        stableFrames = 0;
-      }
-      lastHeight = container.scrollHeight;
-      frames++;
-      if (stableFrames > 20 || frames > 360) {
-        anchorRaf = 0;
-        return;
-      }
-      anchorRaf = requestAnimationFrame(tick);
-    };
-    anchorRaf = requestAnimationFrame(tick);
-  }
-
-  onDestroy(stopAnchorTracking);
-
-  const ANCHOR_MAP: Record<string, string> = {
-    plugin: "config-plugin-section",
-    ai: "config-ai-section",
-    jev: "config-jev-section",
-    mcp: "config-mcp-section",
-    cluster: "config-cluster-section",
-    access: "config-access-section",
-    update: "config-update-section",
-  };
-
-  function resolveSectionId(hash: string): string | undefined {
+  function tabFromHash(hash: string): string | undefined {
     const name = hash.replace(/^#/, "");
-    if (!name) return undefined;
-    return ANCHOR_MAP[name] ?? (Object.values(ANCHOR_MAP).includes(name) ? name : undefined);
+    return (TABS as readonly string[]).includes(name) ? name : undefined;
   }
 
-  function navigateToAnchor(name: string) {
-    goto(`${page.url.pathname}${page.url.search}#${name}`, {
+  $effect(() => {
+    const next = tabFromHash(page.url.hash);
+    // untrack(tab) keeps this effect keyed on the hash alone; reading tab here
+    // would re-run it on every click and snap the selection back to the old hash.
+    if (next && next !== untrack(() => tab)) tab = next;
+  });
+
+  $effect(() => {
+    if (status !== "unlocked") return;
+    const hash = `#${tab}`;
+    if (page.url.hash === hash) return;
+    goto(`${page.url.pathname}${page.url.search}${hash}`, {
       replaceState: true,
       noScroll: true,
       keepFocus: true,
     });
-    applyAnchor(ANCHOR_MAP[name] ?? name);
-  }
-
-  $effect(() => {
-    if (status !== "unlocked") return;
-    const sectionId = resolveSectionId(page.url.hash);
-    if (sectionId) applyAnchor(sectionId);
-  });
-
-  $effect(() => {
-    window.addEventListener("wheel", stopAnchorTracking, { passive: true });
-    window.addEventListener("touchstart", stopAnchorTracking, { passive: true });
-    return () => {
-      window.removeEventListener("wheel", stopAnchorTracking);
-      window.removeEventListener("touchstart", stopAnchorTracking);
-    };
   });
 
   async function init() {
@@ -309,77 +264,61 @@
       </div>
     {:else if status === "unlocked"}
       <div class="max-w-4xl mx-auto">
-        <div class="flex gap-6">
-          <nav class="w-48 shrink-0">
-            <ul class="space-y-1 sticky top-0">
-              <li>
-                <Button variant="ghost" class="w-full justify-start" onclick={() => navigateToAnchor("plugin")}>
-                  <Puzzle />
-                  {$t("config.nav.plugin")}
-                </Button>
-              </li>
-              <li>
-                <Button variant="ghost" class="w-full justify-start" onclick={() => navigateToAnchor("ai")}>
-                  <Bot />
-                  {$t("config.nav.ai")}
-                </Button>
-              </li>
-              <li>
-                <Button variant="ghost" class="w-full justify-start" onclick={() => navigateToAnchor("jev")}>
-                  <Scale />
-                  {$t("config.nav.jev")}
-                </Button>
-              </li>
-              <li>
-                <Button variant="ghost" class="w-full justify-start" onclick={() => navigateToAnchor("mcp")}>
-                  <Plug />
-                  {$t("config.nav.mcp")}
-                </Button>
-              </li>
-              <li>
-                <Button variant="ghost" class="w-full justify-start" onclick={() => navigateToAnchor("cluster")}>
-                  <Network />
-                  {$t("config.nav.cluster")}
-                </Button>
-              </li>
-              <li>
-                <Button variant="ghost" class="w-full justify-start" onclick={() => navigateToAnchor("access")}>
-                  <ShieldCheck />
-                  {$t("config.nav.access")}
-                </Button>
-              </li>
-              <li>
-                <Button variant="ghost" class="w-full justify-start" onclick={() => navigateToAnchor("update")}>
-                  <ArrowUpCircle />
-                  {$t("config.nav.update")}
-                </Button>
-              </li>
-            </ul>
-          </nav>
-          <div class="flex-1 min-w-0 space-y-4">
-            <section id="config-plugin-section" class="scroll-mt-16">
-              <PluginSettings {token} {pluginDir} onAuthExpired={resetAuth} />
-            </section>
-            <section id="config-ai-section" class="scroll-mt-16">
-              <AISettings {token} onAuthExpired={resetAuth} />
-            </section>
-            <section id="config-jev-section" class="scroll-mt-16">
-              <JevSettings {token} onAuthExpired={resetAuth} />
-            </section>
-            <section id="config-mcp-section" class="scroll-mt-16">
-              <MCPSettings {token} onAuthExpired={resetAuth} />
-            </section>
-            <section id="config-cluster-section" class="scroll-mt-16">
-              <ClusterSettings {token} onAuthExpired={resetAuth} />
-            </section>
-            <section id="config-access-section" class="scroll-mt-16">
-              <AccessSettings {token} onAuthExpired={resetAuth} />
-            </section>
-            <section id="config-update-section" class="scroll-mt-16">
-              <UpdateSettings />
-            </section>
-          </div>
-        </div>
+        <Tabs.Root bind:value={tab} orientation="vertical" class="flex-row gap-6">
+          <Tabs.List
+            aria-label={$t("config.title")}
+            class="sticky top-0 h-auto w-48 shrink-0 flex-col items-stretch gap-1 self-start rounded-none bg-transparent p-0">
+            <Tabs.Trigger value="plugin" class={navItem}>
+              <Puzzle />
+              {$t("config.nav.plugin")}
+            </Tabs.Trigger>
+            <Tabs.Trigger value="ai" class={navItem}>
+              <Bot />
+              {$t("config.nav.ai")}
+            </Tabs.Trigger>
+            <Tabs.Trigger value="jev" class={navItem}>
+              <Scale />
+              {$t("config.nav.jev")}
+            </Tabs.Trigger>
+            <Tabs.Trigger value="mcp" class={navItem}>
+              <Plug />
+              {$t("config.nav.mcp")}
+            </Tabs.Trigger>
+            <Tabs.Trigger value="cluster" class={navItem}>
+              <Network />
+              {$t("config.nav.cluster")}
+            </Tabs.Trigger>
+            <Tabs.Trigger value="access" class={navItem}>
+              <ShieldCheck />
+              {$t("config.nav.access")}
+            </Tabs.Trigger>
+            <Tabs.Trigger value="update" class={navItem}>
+              <ArrowUpCircle />
+              {$t("config.nav.update")}
+            </Tabs.Trigger>
+          </Tabs.List>
+          <Tabs.Content value="plugin" class="min-w-0">
+            <PluginSettings {token} {pluginDir} onAuthExpired={resetAuth} />
+          </Tabs.Content>
+          <Tabs.Content value="ai" class="min-w-0">
+            <AISettings {token} onAuthExpired={resetAuth} />
+          </Tabs.Content>
+          <Tabs.Content value="jev" class="min-w-0">
+            <JevSettings {token} onAuthExpired={resetAuth} />
+          </Tabs.Content>
+          <Tabs.Content value="mcp" class="min-w-0">
+            <MCPSettings {token} onAuthExpired={resetAuth} />
+          </Tabs.Content>
+          <Tabs.Content value="cluster" class="min-w-0">
+            <ClusterSettings {token} onAuthExpired={resetAuth} />
+          </Tabs.Content>
+          <Tabs.Content value="access" class="min-w-0">
+            <AccessSettings {token} onAuthExpired={resetAuth} />
+          </Tabs.Content>
+          <Tabs.Content value="update" class="min-w-0">
+            <UpdateSettings />
+          </Tabs.Content>
+        </Tabs.Root>
       </div>
     {/if}
   </main>

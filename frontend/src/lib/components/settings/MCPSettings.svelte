@@ -27,7 +27,7 @@
     loading = true;
     error = "";
     try {
-      mcpToken = await getMCPToken();
+      mcpToken = await getMCPToken(token);
     } catch (e) {
       console.error("failed to load mcp token", e);
       error = e instanceof Error ? e.message : $t("common.loadFailed");

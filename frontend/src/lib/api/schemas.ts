@@ -21,6 +21,7 @@ export interface APIDevice {
     remote?: boolean;
     slave_online?: boolean;
     chain?: string[];
+    occupancy?: Occupancy;
 }
 
 export interface Rect {
@@ -248,4 +249,86 @@ export type ServerConfig = {
     version: string;
     git_commit: string;
     build_time: string;
+}
+
+// --- Identity and presence ---
+
+export const AUTH_SOURCE_LIST = ["proxy", "login", "mcp", "anonymous"] as const;
+export type AuthSource = (typeof AUTH_SOURCE_LIST)[number];
+
+export const CONFLICT_POLICY_LIST = ["preempt", "exclusive"] as const;
+export type ConflictPolicy = (typeof CONFLICT_POLICY_LIST)[number];
+
+export const DEVICE_ACCESS_MODE_LIST = ["control", "view"] as const;
+export type DeviceAccessMode = (typeof DEVICE_ACCESS_MODE_LIST)[number];
+
+export const IDLE_TIMEOUT_LIST = ["1m", "5m", "10m", "30m", "1h"] as const;
+export type IdleTimeout = (typeof IDLE_TIMEOUT_LIST)[number];
+
+export const OCCUPANCY_STATE_LIST = ["free", "mine", "shared", "viewing", "busy", "preempted"] as const;
+export type OccupancyState = (typeof OCCUPANCY_STATE_LIST)[number];
+
+export interface Me {
+    id: string;
+    name: string;
+    email: string;
+    anonymous: boolean;
+    auth_source: AuthSource;
+    avatar_url: string;
+    signout_url: string;
+    presence_enabled: boolean;
+    auth_required: boolean;
+}
+
+export interface Occupant {
+    id: string;
+    name: string;
+    email?: string;
+    avatar_url?: string;
+    anonymous: boolean;
+    sessions: number;
+    last_seen: string;
+}
+
+export interface PresenceNotice {
+    reason: string;
+    by: Occupant;
+    at: string;
+}
+
+export interface Occupancy {
+    device_id: string;
+    state: OccupancyState;
+    in_use: boolean;
+    mine: boolean;
+    since?: string;
+    occupants?: Occupant[];
+    observers?: Occupant[];
+    policy: ConflictPolicy;
+    can_takeover: boolean;
+    can_observe: boolean;
+    notice?: PresenceNotice;
+}
+
+export interface AccessAuthConfig {
+    trusted_proxies: string[];
+    require_identity: boolean;
+    signout_url: string;
+}
+
+export interface AccessPresenceConfig {
+    enabled: boolean;
+    conflict_policy: ConflictPolicy;
+    idle_timeout: IdleTimeout;
+    allow_observers: boolean;
+}
+
+export interface AccessConfig {
+    auth: AccessAuthConfig;
+    presence: AccessPresenceConfig;
+}
+
+export interface AccessConfigResponse {
+    config: AccessConfig;
+    config_file: string;
 }

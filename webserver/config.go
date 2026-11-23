@@ -123,6 +123,8 @@ type appConfig struct {
 	// Cluster holds master cluster state: registered slaves and adb relay
 	// settings.
 	Cluster *ClusterConfig `json:"cluster,omitempty"`
+	// Access holds the identity and device presence settings.
+	Access *AccessConfig `json:"access,omitempty"`
 }
 
 // ClusterConfig is the persisted master-side cluster configuration.
@@ -152,6 +154,7 @@ func SetConfigFile(path string) {
 	configMu.Lock()
 	defer configMu.Unlock()
 	configFile = path
+	ResetAccessConfigCache()
 }
 
 // defaultConfigPaths returns the preferred and legacy config paths under the

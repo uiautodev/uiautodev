@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
 	"github.com/uiautodev/uiautodev/webserver/utils"
 
 	"github.com/gorilla/websocket"
@@ -41,6 +42,9 @@ func WSScrcpyHandler(c echo.Context) error {
 		return err
 	}
 	defer ws.Close()
+	if unregister := registerStreamConn(c.Request().Context(), ws); unregister != nil {
+		defer unregister()
+	}
 
 	err = handleAndroidScrcpyWebSocket(ws, serial, extraArgs)
 	if err != nil {
@@ -89,6 +93,9 @@ func WSScreenFramesHandler(c echo.Context) error {
 		return err
 	}
 	defer ws.Close()
+	if unregister := registerStreamConn(c.Request().Context(), ws); unregister != nil {
+		defer unregister()
+	}
 
 	dev, err := NewDevice(deviceId)
 	if err != nil {

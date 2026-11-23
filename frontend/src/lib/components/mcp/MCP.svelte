@@ -1,10 +1,12 @@
 <script lang="ts">
   import { api, baseURL, getMCPToken } from "$lib/api/api.js";
   import { onMount } from "svelte";
+  import { Button } from "$lib/components/ui/button/index.js";
   import * as InputGroup from "$lib/components/ui/input-group/index.js";
   import CopyButton from "$lib/components/ui/copy-button/copy-button.svelte";
   import { Switch } from "$lib/components/ui/switch/index.js";
-  import { Braces, BugPlay, ExternalLink } from "lucide-svelte";
+  import { Braces, BugPlay, ExternalLink, Lock } from "lucide-svelte";
+  import { managementAuth } from "$lib/stores/management-auth.svelte";
   import OpenCodeIcon from "$lib/components/icons/opencode.svelte";
   import ClaudeIcon from "$lib/components/icons/claude.svelte";
   import CursorIcon from "$lib/components/icons/cursor.svelte";
@@ -16,6 +18,7 @@
 
   let mcpName = $state("uiautodev");
   let mcpToken = $state("");
+  let tokenLocked = $state(false);
   let inProject = $state(true);
   let piLocal = $state(true);
 
@@ -40,14 +43,16 @@
 
   onMount(async () => {
     try {
-      mcpToken = await getMCPToken();
-    } catch {
-      // MCP token not configured or endpoint unavailable
+      mcpToken = await getMCPToken(managementAuth.token);
+    } catch (e) {
+      if ((e as { response?: { status?: number } })?.response?.status === 401) {
+        tokenLocked = true;
+      }
     }
 
     try {
-      const headers = mcpToken ? { Authorization: `Bearer ${mcpToken}` } : undefined;
-      const res = await api.get<ToolInfo[]>("/mcp/tools", { headers });
+      // Tool metadata is public; the token is only needed for actual calls.
+      const res = await api.get<ToolInfo[]>("/mcp/tools");
       tools = res.data;
     } catch (e) {
       console.error("failed to load MCP tools", e);
@@ -62,7 +67,9 @@
     return `opencode mcp add ${mcpName} --url ${streamableMcpAddress}${headerFlag}`;
   });
 
-  const authHeader = $derived(mcpToken ? `Bearer ${mcpToken}` : ""); // pragma: allowlist secret
+  const authHeader = $derived(
+    mcpToken ? `Bearer ${mcpToken}` : tokenLocked ? "Bearer YOUR_MCP_TOKEN" : "", // pragma: allowlist secret
+  );
 
   const claudeCommand = $derived.by(() => {
     const scopeFlag = inProject ? " -s project" : "";
@@ -151,7 +158,14 @@
     <h3 class="text-xl font-semibold text-foreground">MCP Server</h3>
     <p class="text-sm text-muted-foreground mb-4">Model Context Protocol integration</p>
 
-    {#if !mcpToken}
+    {#if tokenLocked}
+      <div
+        class="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <Lock class="size-4 shrink-0" />
+        <span class="min-w-0 flex-1">{$t("mcp.tokenLockedHint")}</span>
+        <Button href="/config#mcp" variant="outline" size="sm">{$t("mcp.openSettings")}</Button>
+      </div>
+    {:else if !mcpToken}
       <p class="text-xs text-amber-600 dark:text-amber-400 mb-4">{$t("mcp.cardNoTokenHint")}</p>
     {/if}
 

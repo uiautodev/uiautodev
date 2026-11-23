@@ -1,6 +1,6 @@
 # 设备占用、观察者与第三方身份接入设计
 
-> 状态：设计稿（尚未实现）
+> 状态：已实现（`webserver/access_config.go`、`webserver/identity.go`、`webserver/presence.go`）
 > 日期：2026-10-30
 > 范围：`webserver/`、`cmd/uiautodev-server/`、`frontend/`、文档
 
@@ -601,3 +601,11 @@ type Notice struct {
 - 抢占历史审计日志；
 - 基于组/角色的权限（例如只允许管理员抢占）；
 - 通知渠道接入（邮件 / IM）。
+
+## 16. 实现备注
+
+- 所有新接口沿用现有 `{"code","message","data"}` 响应包裹，`data` 内才是本文档描述的结构。
+- `/api/v1/devices/:id/meta` 属于被动请求：只在已有会话时续期，不会因为修改备注而占用设备。
+- 浏览器首次导航（`Accept: text/html`）会生成 32 位随机 `ua_sid` 并写入 cookie；无 cookie 的脚本请求继续按 `IP + User-Agent` 哈希兜底，保证同一脚本身份稳定。
+- 空闲超时直接释放设备；只有显式 `DELETE .../presence` 才走 30 秒宽限期。
+- MCP 使用同一个 `mcp_token` 时身份为 `mcp:admin`（显示名 `MCP`），所有 MCP 客户端共享该身份；新增 `acquire_device` / `release_device` 工具，其他设备工具在读/控制两类上自动申请会话，语义与 HTTP 一致。

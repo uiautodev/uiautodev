@@ -53,7 +53,8 @@
       "jev": "Jev",
       "mcp": "MCP",
       "cluster": "Remote Nodes",
-      "update": "Update"
+      "update": "Update",
+      "access": "Access & Presence"
     },
     "update": {
       "title": "Application Update",
@@ -78,7 +79,9 @@
     "generate": "Generate random",
     "emptyHint": "When empty: MCP is fully open. With -auth enabled, a token is generated automatically on startup. Changes take effect immediately, no restart needed.",
     "cardNoTokenHint": "No MCP token configured, so the MCP endpoint is open. Configure a token in Settings, or start with -auth to generate one automatically.",
-    "piHint": "Written to .pi/mcp.json (project) or ~/.pi/agent/mcp.json (global); configuration below."
+    "piHint": "Written to .pi/mcp.json (project) or ~/.pi/agent/mcp.json (global); configuration below.",
+    "tokenLockedHint": "The MCP token requires the management password. Unlock it in Settings, then come back to this page.",
+    "openSettings": "Open settings"
   },
   "cluster": {
     "title": "Remote Nodes",
@@ -272,7 +275,8 @@
       "product": "Product",
       "remark": "Remark",
       "status": "Status",
-      "actions": "Actions"
+      "actions": "Actions",
+      "occupancy": "Occupancy"
     },
     "status": {
       "offline": "Offline",
@@ -412,5 +416,71 @@
       "cancel": "Cancel",
       "apply": "Apply"
     }
+  },
+  "presence": {
+    "state": {
+      "free": "Free",
+      "mine": "In use by me",
+      "shared": "Shared",
+      "viewing": "Observing",
+      "busy": "In use",
+      "preempted": "Preempted"
+    },
+    "observers": "Observers",
+    "busyTitle": "Device is in use",
+    "busyDesc": "You can wait, observe, or take it over.",
+    "inUseBy": "Currently controlled by {name}",
+    "freeHint": "The device is released automatically after the idle timeout.",
+    "cancel": "Back to devices",
+    "observeOnly": "Observe only",
+    "takeover": "Take over",
+    "readOnly": "Read-only",
+    "readOnlyDesc": "You can watch the screen but cannot control the device.",
+    "requestControl": "Take over control",
+    "preemptedToast": "{name} took over this device.",
+    "someone": "another user",
+    "acquiring": "Acquiring device...",
+    "acquireError": "Failed to acquire the device"
+  },
+  "me": {
+    "signOut": "Sign out",
+    "authSource": {
+      "proxy": "Proxy",
+      "login": "Login",
+      "anonymous": "Anonymous",
+      "mcp": "MCP token"
+    }
+  },
+  "access": {
+    "title": "Access & Presence",
+    "desc": "Configure trusted proxy identity and device occupancy behavior.",
+    "identitySection": "Identity",
+    "trustedProxies": "Trusted proxies",
+    "trustedProxiesPlaceholder": "127.0.0.1/32\n::1/128",
+    "trustedProxiesHint": "One IP or CIDR per line. X-Forwarded-* headers are honored only for requests from these addresses.",
+    "requireIdentity": "Require identity",
+    "requireIdentityHint": "Reject anonymous API requests.",
+    "signoutUrl": "Sign-out URL",
+    "signoutUrlHint": "Optional, e.g. /oauth2/sign_out. Leave empty to hide the sign-out action.",
+    "requireIdentityWarning": "Identity is required but no trusted proxy is configured: anonymous browsers cannot use the API. Edit config.json and restart to recover.",
+    "presenceSection": "Device presence",
+    "presenceEnabled": "Enable presence management",
+    "presenceEnabledHint": "Track who controls each device and release idle devices automatically.",
+    "idleTimeout": "Idle timeout",
+    "idle": {
+      "1m": "1 minute",
+      "5m": "5 minutes",
+      "10m": "10 minutes",
+      "30m": "30 minutes",
+      "1h": "1 hour"
+    },
+    "conflictPolicy": "Conflict policy",
+    "policy": {
+      "preempt": "Allow takeover",
+      "exclusive": "Exclusive"
+    },
+    "allowObservers": "Allow observers",
+    "allowObserversHint": "Other users can watch the screen and read the UI tree in read-only mode.",
+    "configFile": "Config file:"
   }
 }

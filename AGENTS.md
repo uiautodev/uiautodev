@@ -18,6 +18,7 @@
 - 涉及到前端请求后端的，优先封装一个函数到api.ts中
 - 前端界面的文案要支持多语言：新增或修改可展示文本时，用 `$t("key")` 替换硬编码常量，并在 `frontend/src/lib/i18n/locales/zh-CN.json` 与 `en.json` 中同步新增对应的 key（两个文件都必须加，缺一不可）
 - 样式要支持主题自适应（暗黑模式）：用 shadcn token 类（text-foreground、text-muted-foreground、bg-background、bg-card、bg-muted、border-border 等），不要写死浅色（如 text-gray-900、bg-white、text-gray-500）；写死的浅色样式在暗黑模式下会失效（文字隐形/背景仍是白色）
+- 所有涉及网页界面的修改，都必须用 Playwright 实际打开页面验证：启动本地服务后走一遍主要交互，并检查暗黑模式和窄屏；不能只依赖 `bun run check` 或构建通过
 
 # 后端 / 接口设计
 

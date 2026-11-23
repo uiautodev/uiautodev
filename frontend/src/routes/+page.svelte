@@ -3,7 +3,7 @@
   import { onMount } from "svelte";
   import { api, subscribeDeviceList } from "$lib/api/api.js";
   import type { APIDevice, DeviceMeta } from "$lib/api/schemas.js";
-  import { RefreshCcw, Mouse } from "lucide-svelte";
+  import { RefreshCcw, Mouse, Eye } from "lucide-svelte";
   import * as UnderlineTabs from "$lib/components/ui/underline-tabs";
   import * as Popover from "$lib/components/ui/popover/index.js";
   import * as Select from "$lib/components/ui/select/index.js";
@@ -15,6 +15,8 @@
   import AppHeader from "$lib/components/AppHeader.svelte";
   import DeviceRemark from "$lib/components/device/DeviceRemark.svelte";
   import DeviceIosSettings from "$lib/components/device/DeviceIosSettings.svelte";
+  import PresenceBadge from "$lib/components/device/PresenceBadge.svelte";
+  import { identityStore } from "$lib/stores/identity.svelte";
 
   let devices = $state<APIDevice[]>([]);
   let loading = $state(true);
@@ -57,6 +59,7 @@
   );
 
   const selectedNode = $derived(nodeOptions.find(([id]) => id === nodeFilter));
+  const mineId = $derived(identityStore.me?.id ?? "");
 
   const PLATFORM_LABEL_KEYS: Record<string, string> = {
     android: "home.platform.android",
@@ -202,6 +205,10 @@
                 {$t("home.table.status")}
               </th>
               <th
+                class="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                {$t("home.table.occupancy")}
+              </th>
+              <th
                 class="px-4 py-3 text-right text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider sticky right-0 bg-slate-100 dark:bg-slate-700">
                 {$t("home.table.actions")}
               </th>
@@ -258,10 +265,24 @@
                     </span>
                   </span>
                 </td>
+                <td class="px-4 py-4 whitespace-nowrap">
+                  <PresenceBadge occupancy={device.occupancy} {mineId} />
+                </td>
                 <td class="px-4 py-4 whitespace-nowrap text-right sticky right-0 bg-white dark:bg-slate-800">
                   <div class="flex items-center justify-end gap-1">
                     {#if device.platform === "ios"}
                       <DeviceIosSettings deviceId={device.id} meta={device.meta} onsaved={handleMetaSaved} />
+                    {/if}
+                    {#if device.occupancy?.can_observe && device.occupancy?.in_use && !device.occupancy?.mine}
+                      <Button
+                        href={`/device/${device.id}?mode=view`}
+                        size="sm"
+                        variant="outline"
+                        class="text-xs"
+                        disabled={!isDeviceOnline(device)}>
+                        <Eye />
+                        {$t("presence.observeOnly")}
+                      </Button>
                     {/if}
                     <Button href={`/device/${device.id}`} size="sm" class="text-xs" disabled={!isDeviceOnline(device)}>
                       <Mouse />

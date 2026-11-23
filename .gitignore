@@ -61,6 +61,7 @@ version/version.json
 .opencode/
 .github/*
 !.github/workflows/
+!.github/actions/
 !.github/FUNDING.yml
 /main
 /uiautodev

@@ -1,0 +1,62 @@
+name: Prepare frontend
+description: 安装 Go/Bun/wails3，生成 bindings 并构建前端
+
+inputs:
+  wails3-version:
+    description: wails3 CLI 版本，需与 go.mod 中的 wails v3 一致
+    required: false
+    default: v3.0.0
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
+
+    # 在 Linux 上 wails3 CLI 自身会编译 gtk4/webkitgtk 的 cgo 代码，
+    # CGO_ENABLED=0 可避免安装 GTK 开发包（bindings 生成不依赖 cgo）。
+    - name: Cache wails3 CLI
+      id: wails3-cache
+      uses: actions/cache@v6
+      with:
+        path: ~/go/bin/wails3*
+        key: wails3-${{ inputs.wails3-version }}-${{ runner.os }}
+
+    - name: Install wails3
+      if: steps.wails3-cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        CGO_ENABLED: "0"
+      run: go install "github.com/wailsapp/wails/v3/cmd/wails3@${{ inputs.wails3-version }}"
+
+    - name: Add wails3 to PATH
+      shell: bash
+      run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+    # version/version.go 是 go generate 产物（未入库），bindings 的类型检查
+    # 会编译整个应用，所以必须先生成。
+    - name: Generate version and plugin schema
+      shell: bash
+      run: go generate ./version ./webserver/...
+
+    # frontend/src/lib/compat.ts 动态 import 生成的 bindings，缺失时
+    # bun run build / bun run check 都会失败。用 server 标签 + CGO_ENABLED=0
+    # 可以跳过 Linux 上 GTK4/WebKitGTK 6.0 的系统依赖。
+    - name: Generate bindings
+      shell: bash
+      env:
+        CGO_ENABLED: "0"
+      run: wails3 generate bindings -clean=true -ts -i -f "-tags server"
+
+    - name: Build frontend
+      shell: bash
+      run: |
+        cd frontend
+        bun install --frozen-lockfile
+        bun run build

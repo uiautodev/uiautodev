@@ -1,0 +1,35 @@
+name: CI
+
+# push 到 master 和 PR 时跑单测与前端类型检查；发版前的 release.yml 也会再跑一遍。
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # 与 go.mod 中的 github.com/wailsapp/wails/v3 版本保持一致
+  WAILS3_VERSION: v3.0.0
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/prepare-frontend
+        with:
+          wails3-version: ${{ env.WAILS3_VERSION }}
+
+      - uses: ./.github/actions/run-checks

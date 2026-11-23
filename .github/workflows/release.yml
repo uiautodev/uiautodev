@@ -29,51 +29,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/prepare-frontend
         with:
-          go-version-file: go.mod
-          cache: true
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      # 在 Linux 上 wails3 CLI 自身会编译 gtk4/webkitgtk 的 cgo 代码，
-      # CGO_ENABLED=0 可避免安装 GTK 开发包（bindings 生成不依赖 cgo）。
-      - name: Cache wails3 CLI
-        id: wails3-cache
-        uses: actions/cache@v6
-        with:
-          path: ~/go/bin/wails3*
-          key: wails3-${{ env.WAILS3_VERSION }}-${{ runner.os }}
-
-      - name: Install wails3
-        if: steps.wails3-cache.outputs.cache-hit != 'true'
-        env:
-          CGO_ENABLED: "0"
-        run: go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS3_VERSION}"
-
-      - name: Add wails3 to PATH
-        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
-      # version/version.go 是 go generate 产物（未入库），bindings 的类型检查
-      # 会编译整个应用，所以必须先生成。
-      - name: Generate version and plugin schema
-        run: go generate ./version ./webserver/...
-
-      # bindings 生成需要类型检查 wails 的 application 包。Linux 默认走
-      # GTK4/WebKitGTK 6.0 的 cgo 实现，需要额外的系统依赖；用 server 标签 +
-      # CGO_ENABLED=0 可以跳过这些依赖，生成的 bindings 与桌面端一致。
-      - name: Generate bindings
-        env:
-          CGO_ENABLED: "0"
-        run: wails3 generate bindings -clean=true -ts -i -f "-tags server"
-
-      - name: Build frontend
-        working-directory: frontend
-        run: |
-          bun install --frozen-lockfile
-          bun run build
+          wails3-version: ${{ env.WAILS3_VERSION }}
 
       - uses: actions/upload-artifact@v7
         with:
@@ -101,37 +59,13 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - uses: actions/download-artifact@v8
         with:
           name: frontend
           path: frontend
           merge-multiple: true
 
-      - name: Generate version and plugin schema
-        run: go generate ./version ./webserver/...
-
-      # 桌面端依赖 wails 的 GTK4/WebKitGTK 6.0 cgo 实现，Linux runner 默认没有
-      # 这些头文件；用 server 标签 + CGO_ENABLED=0 跑测试，涉及的业务代码不变。
-      - name: Go tests
-        env:
-          CGO_ENABLED: "0"
-          GOFLAGS: "-tags=server"
-        run: make test
-
-      - name: Frontend check
-        working-directory: frontend
-        run: |
-          bun install --frozen-lockfile
-          bun run check
+      - uses: ./.github/actions/run-checks
 
   server:
     name: Server binaries

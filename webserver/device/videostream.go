@@ -46,7 +46,10 @@ func WSScrcpyHandler(c echo.Context) error {
 		defer unregister()
 	}
 
-	err = handleAndroidScrcpyWebSocket(ws, serial, extraArgs)
+	// The scrcpy websocket is bidirectional; a view-only session may watch but
+	// must not inject input events.
+	readOnly := isReadOnlyStream(c.Request().Context())
+	err = handleAndroidScrcpyWebSocket(ws, serial, extraArgs, readOnly)
 	if err != nil {
 		slog.Info("scrcpy ws closed", "err", err)
 	}
@@ -107,7 +110,12 @@ func WSScreenFramesHandler(c echo.Context) error {
 		return errors.New("device does not support screen frames")
 	}
 
-	ctx, cancel := startWebsocketReader(c.Request().Context(), ws, controlMessageHandler(dev.Device))
+	// A view-only session may read frames but must not send control messages.
+	var onMessage func(context.Context, []byte)
+	if !isReadOnlyStream(c.Request().Context()) {
+		onMessage = controlMessageHandler(dev.Device)
+	}
+	ctx, cancel := startWebsocketReader(c.Request().Context(), ws, onMessage)
 	defer cancel()
 
 	err = streamer.StartWebsocketStream(ctx, ws)

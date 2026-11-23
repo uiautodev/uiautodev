@@ -33,3 +33,27 @@ func registerStreamConn(ctx context.Context, conn *websocket.Conn) func() {
 	}
 	return fn(ctx, conn)
 }
+
+// streamReadOnlyHook lets the presence layer mark a stream connection as
+// belonging to a view-only session. Streaming websockets are bidirectional, so
+// the device layer drops their input messages instead of trusting the client.
+var streamReadOnlyHook struct {
+	mu sync.RWMutex
+	fn func(ctx context.Context) bool
+}
+
+// SetStreamReadOnlyHook installs the read-only hook. Passing nil removes it.
+func SetStreamReadOnlyHook(fn func(ctx context.Context) bool) {
+	streamReadOnlyHook.mu.Lock()
+	streamReadOnlyHook.fn = fn
+	streamReadOnlyHook.mu.Unlock()
+}
+
+// isReadOnlyStream reports whether the stream request belongs to a view-only
+// session. It returns false when no hook is installed.
+func isReadOnlyStream(ctx context.Context) bool {
+	streamReadOnlyHook.mu.RLock()
+	fn := streamReadOnlyHook.fn
+	streamReadOnlyHook.mu.RUnlock()
+	return fn != nil && fn(ctx)
+}

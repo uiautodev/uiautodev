@@ -1,6 +1,7 @@
 package webserver
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -393,6 +394,138 @@ func decodeSnapshot(t *testing.T, rec *httptest.ResponseRecorder) Occupancy {
 		t.Fatalf("decode snapshot: %v", err)
 	}
 	return body.Data.Devices["a-1"]
+}
+
+// TestPresenceReleaseKicksStreams makes sure an explicit release closes the
+// session's websockets. Otherwise the released session keeps its screen and
+// input stream while the device can already be acquired by someone else.
+func TestPresenceReleaseKicksStreams(t *testing.T) {
+	manager := newTestPresenceManager(t)
+	alice := testIdentity("anon:alice", "sess-a")
+	if _, err := manager.Acquire("a-1", alice, AccessModeControl, false, "ip", "ua"); err != nil {
+		t.Fatalf("acquire failed: %v", err)
+	}
+
+	var reasons []string
+	ref := &presenceSessionRef{DeviceID: "a-1", SessionID: alice.SessionID}
+	unregister := manager.attachStream(ref, func(reason string) { reasons = append(reasons, reason) })
+	if unregister == nil {
+		t.Fatalf("expected a registered stream")
+	}
+	t.Cleanup(unregister)
+
+	manager.Release("a-1", alice.SessionID)
+	if len(reasons) != 1 {
+		t.Fatalf("expected the release to close the stream, got %v", reasons)
+	}
+	if _, ok := manager.Mode("a-1", alice.SessionID); ok {
+		t.Fatalf("session should be gone after release")
+	}
+}
+
+// TestPresenceActiveStreamPreventsIdleRelease covers a screen stream that keeps
+// rendering but sends no HTTP requests: it must not be reaped by idle_timeout.
+func TestPresenceActiveStreamPreventsIdleRelease(t *testing.T) {
+	manager := newTestPresenceManager(t)
+	now := time.Now()
+	manager.now = func() time.Time { return now }
+
+	var released []string
+	manager.onIdle = func(deviceID string) { released = append(released, deviceID) }
+
+	cfg := defaultAccessConfig()
+	cfg.Presence.IdleTimeout = IdleTimeout1m
+	if _, err := setAccessConfig(cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	alice := testIdentity("anon:alice", "sess-a")
+	if _, err := manager.Acquire("a-1", alice, AccessModeControl, false, "ip", "ua"); err != nil {
+		t.Fatalf("acquire failed: %v", err)
+	}
+	ref := &presenceSessionRef{DeviceID: "a-1", SessionID: alice.SessionID}
+	unregister := manager.attachStream(ref, func(string) {})
+	if unregister == nil {
+		t.Fatalf("expected a registered stream")
+	}
+
+	manager.sweep(now.Add(5 * time.Minute))
+	if len(released) != 0 {
+		t.Fatalf("a streaming session must not be released: %v", released)
+	}
+	if _, ok := manager.Mode("a-1", alice.SessionID); !ok {
+		t.Fatalf("streaming session disappeared")
+	}
+
+	unregister()
+	manager.sweep(now.Add(2 * time.Minute))
+	if len(released) != 1 || released[0] != "a-1" {
+		t.Fatalf("expected the device release after the stream ended, got %v", released)
+	}
+}
+
+// TestPresenceIdleReleaseSkipsReacquiredDevice reproduces the race between the
+// sweeper's release decision and a new session: the release callback must not
+// run once the device has been acquired again, or it closes the new session's
+// adb connection.
+func TestPresenceIdleReleaseSkipsReacquiredDevice(t *testing.T) {
+	manager := newTestPresenceManager(t)
+	now := time.Now()
+	manager.now = func() time.Time { return now }
+
+	var released []string
+	manager.onIdle = func(deviceID string) { released = append(released, deviceID) }
+
+	alice := testIdentity("anon:alice", "sess-a")
+	if _, err := manager.Acquire("a-1", alice, AccessModeControl, false, "ip", "ua"); err != nil {
+		t.Fatalf("acquire failed: %v", err)
+	}
+	manager.Release("a-1", alice.SessionID)
+
+	bob := testIdentity("anon:bob", "sess-b")
+	manager.beforeIdleRelease = func(deviceID string) {
+		manager.beforeIdleRelease = nil
+		if _, perr := manager.Acquire(deviceID, bob, AccessModeControl, false, "ip", "ua"); perr != nil {
+			t.Fatalf("re-acquire failed: %v", perr)
+		}
+	}
+	manager.sweep(now.Add(releaseGrace + time.Second))
+
+	if len(released) != 0 {
+		t.Fatalf("device was released despite a new session: %v", released)
+	}
+	if _, ok := manager.Mode("a-1", bob.SessionID); !ok {
+		t.Fatalf("the new session must survive the stale release")
+	}
+}
+
+// TestPresenceStreamReadOnlyForViewSession checks the flag the device layer uses
+// to drop input messages from a bidirectional streaming websocket.
+func TestPresenceStreamReadOnlyForViewSession(t *testing.T) {
+	useTempConfig(t)
+	const deviceID = "a-1-view"
+	t.Cleanup(func() { presenceManagerInstance.ReleaseDevice(deviceID) })
+
+	alice := testIdentity("anon:alice", "sess-a")
+	bob := testIdentity("anon:bob", "sess-b")
+	if _, err := presenceManagerInstance.Acquire(deviceID, alice, AccessModeControl, false, "ip", "ua"); err != nil {
+		t.Fatalf("alice acquire failed: %v", err)
+	}
+	if _, err := presenceManagerInstance.Acquire(deviceID, bob, AccessModeView, false, "ip", "ua"); err != nil {
+		t.Fatalf("bob acquire failed: %v", err)
+	}
+
+	viewCtx := context.WithValue(context.Background(), presenceContextKey{}, &presenceSessionRef{DeviceID: deviceID, SessionID: bob.SessionID})
+	controlCtx := context.WithValue(context.Background(), presenceContextKey{}, &presenceSessionRef{DeviceID: deviceID, SessionID: alice.SessionID})
+	if !StreamReadOnly(viewCtx) {
+		t.Fatalf("view session stream should be read-only")
+	}
+	if StreamReadOnly(controlCtx) {
+		t.Fatalf("control session stream must not be read-only")
+	}
+	if StreamReadOnly(context.Background()) {
+		t.Fatalf("requests without a presence session are not read-only")
+	}
 }
 
 func TestIsControlRequest(t *testing.T) {

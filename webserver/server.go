@@ -447,6 +447,7 @@ func CreateEchoServerWithConfig(config ServerConfig) *echo.Echo {
 	// username it sets, then presence auto-sessions device requests.
 	e.Use(identityMiddleware())
 	device.SetStreamConnHook(RegisterStreamConn)
+	device.SetStreamReadOnlyHook(StreamReadOnly)
 	e.Use(presenceMiddleware(presenceManagerInstance))
 
 	// Routes

@@ -139,12 +139,9 @@ func acceptsHTML(c echo.Context) bool {
 	return strings.Contains(c.Request().Header.Get(echo.HeaderAccept), "text/html")
 }
 
-// resolveSessionID determines the caller's session ID from the cookie, a bearer
-// token or, as a last resort, the client IP plus user agent. It returns an
-// empty string for a browser navigation without a cookie: the middleware then
-// creates a fresh random session and stores it in the cookie so distinct
-// browsers get distinct identities even behind the same IP with the same user
-// agent.
+// resolveSessionID determines the caller's session ID from an explicit
+// credential: the cookie or a bearer token. It returns an empty string when the
+// request carries neither, leaving the fallback to resolveIdentity.
 func resolveSessionID(c echo.Context) string {
 	if cookie, err := c.Cookie(sessionCookieName); err == nil {
 		if value := strings.TrimSpace(cookie.Value); len(value) >= 16 {
@@ -154,7 +151,39 @@ func resolveSessionID(c echo.Context) string {
 	if token := extractBearerToken(c); token != "" {
 		return hashShort(token)
 	}
+	return ""
+}
+
+// resolveIdentitySource determines who the caller is, independently of the
+// session ID.
+func resolveIdentitySource(c echo.Context, cfg AccessConfig) (Identity, AuthSource) {
+	networks := compileTrustedProxies(cfg.Auth.TrustedProxies)
+	if ipInNetworks(clientIP(c), networks) {
+		if identity, ok := proxyIdentity(c.Request().Header); ok {
+			return identity, AuthSourceProxy
+		}
+	}
+	if username, ok := c.Get("username").(string); ok && username != "" {
+		return Identity{
+			ID:   "login:" + username,
+			Name: username,
+		}, AuthSourceLogin
+	}
+	return Identity{Name: "Anonymous", Anonymous: true}, AuthSourceAnonymous
+}
+
+// fallbackSessionID derives a deterministic session for requests without a
+// cookie or bearer token. An authenticated identity is part of the hash because
+// users behind the same trusted proxy (or several Basic Auth accounts) usually
+// share an IP and user agent; without it the later one would reuse the earlier
+// one's presence session and silently take over its device.
+func fallbackSessionID(c echo.Context, identity Identity) string {
+	if identity.ID != "" {
+		return hashShort(clientIP(c) + "|" + c.Request().UserAgent() + "|" + identity.ID)
+	}
 	if acceptsHTML(c) {
+		// Let the middleware mint a random session and persist it in a cookie
+		// so two browsers behind the same IP get distinct identities.
 		return ""
 	}
 	return hashShort(clientIP(c) + "|" + c.Request().UserAgent())
@@ -163,45 +192,34 @@ func resolveSessionID(c echo.Context) string {
 // resolveIdentity builds the request identity from the trusted proxy headers,
 // the login session or the anonymous session cookie.
 func resolveIdentity(c echo.Context, cfg AccessConfig) *requestIdentity {
+	identity, source := resolveIdentitySource(c, cfg)
 	sessionID := resolveSessionID(c)
+	if sessionID == "" {
+		sessionID = fallbackSessionID(c, identity)
+	}
 	if sessionID == "" {
 		sessionID = newSessionID()
 	}
-	networks := compileTrustedProxies(cfg.Auth.TrustedProxies)
-	if ipInNetworks(clientIP(c), networks) {
-		if identity, ok := proxyIdentity(c.Request().Header); ok {
-			return &requestIdentity{Identity: identity, SessionID: sessionID, Source: AuthSourceProxy}
-		}
+	if identity.Anonymous {
+		identity.ID = "anon:" + sessionID[:8]
 	}
-	if username, ok := c.Get("username").(string); ok && username != "" {
-		return &requestIdentity{
-			Identity: Identity{
-				ID:   "login:" + username,
-				Name: username,
-			},
-			SessionID: sessionID,
-			Source:    AuthSourceLogin,
-		}
-	}
-	return &requestIdentity{
-		Identity: Identity{
-			ID:        "anon:" + sessionID[:8],
-			Name:      "Anonymous",
-			Anonymous: true,
-		},
-		SessionID: sessionID,
-		Source:    AuthSourceAnonymous,
-	}
+	return &requestIdentity{Identity: identity, SessionID: sessionID, Source: source}
 }
 
-// identityExemptPath lists the paths that stay reachable without an identity
-// even when require_identity is on.
-func identityExemptPath(path string) bool {
-	switch path {
-	case "/healthz", "/api/v1/me":
+// identityRequiredPath reports whether require_identity applies to the request.
+// Only API traffic is rejected (except /api/v1/me, which the frontend needs to
+// render the signed-out state). The MCP endpoints authenticate with their own
+// token and the frontend shell plus static assets stay reachable so the page can
+// show the 401 instead of raw JSON.
+func identityRequiredPath(path string) bool {
+	switch {
+	case path == "/api/v1/me":
+		return false
+	case strings.HasPrefix(path, "/api/"), strings.HasPrefix(path, "/proxy/"), strings.HasPrefix(path, "/stream/"):
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
 // identityMiddleware resolves the caller identity, issues the anonymous session
@@ -227,7 +245,7 @@ func identityMiddleware() echo.MiddlewareFunc {
 				})
 			}
 
-			if cfg.Auth.RequireIdentity && identity.Anonymous && !identityExemptPath(c.Request().URL.Path) {
+			if cfg.Auth.RequireIdentity && identity.Anonymous && identityRequiredPath(c.Request().URL.Path) {
 				return c.JSONPretty(http.StatusUnauthorized, APIResponse{
 					Code:    401,
 					Message: "identity required",

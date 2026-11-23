@@ -18,12 +18,13 @@
 |---|---|
 | 浏览器首次导航 | 随机 32 位 `ua_sid` cookie（HttpOnly、SameSite=Lax、HTTPS 时 Secure、1 年） |
 | 带 Bearer 的脚本 | `sha256(token)` 前 16 位 |
-| 无 cookie 的脚本 | `sha256(IP + User-Agent)` 前 16 位 |
+| 无 cookie 的脚本 | `sha256(IP + User-Agent + 身份 ID)` 前 16 位（匿名请求没有身份，只用 IP + User-Agent） |
 
 - 同一浏览器的多个标签页视为同一个身份。
 - 不同浏览器、无痕窗口、清除 cookie 后都会变成新的匿名身份。
 - 只有直连对端 IP 在可信代理列表内时才会解析 `X-Forwarded-*` / `X-Auth-Request-*` 头，默认不信任任何代理。
-- `require_identity=true` 时匿名请求返回 401，仅 `/healthz` 与 `/api/v1/me` 例外。
+- 兜底会话把身份算进 hash：经同一反代或同一台机器访问的两个登录用户即使 IP 和 User-Agent 相同，也不会共用 presence 会话。
+- `require_identity=true` 时匿名的 API / 设备流请求返回 401；`/api/v1/me`、前端静态资源与 `/mcp/`（单独用 MCP token 认证）不受影响。
 
 支持的请求头：`X-Forwarded-User` / `X-Auth-Request-User`（必需其一）、`X-Forwarded-Email` / `X-Auth-Request-Email`、`X-Forwarded-Preferred-Username`、`X-Forwarded-Groups`、`X-Forwarded-Avatar`。
 
@@ -52,12 +53,14 @@
 | 字段 | 默认值 | 说明 |
 |---|---|---|
 | `trusted_proxies` | `[]` | 可信代理 IP 或 CIDR，每项一个 |
-| `require_identity` | `false` | 无身份时拒绝 API 请求 |
+| `require_identity` | `false` | 无身份时拒绝 API / 设备流请求 |
 | `signout_url` | `""` | 非空时导航头像菜单显示「退出登录」 |
 | `presence.enabled` | `true` | 是否启用设备占用管理 |
 | `presence.conflict_policy` | `preempt` | `preempt` 允许抢占，`exclusive` 只能等待 |
 | `presence.idle_timeout` | `10m` | 空闲释放时间：`1m` / `5m` / `10m` / `30m` / `1h` |
 | `presence.allow_observers` | `true` | 是否允许其他用户以只读方式加入 |
+
+缺失的字段取默认值，显式写出的值（包括 `false`）优先。因此只写 `access.auth`（上面的 oauth2-proxy 示例）时占用功能仍然开启。
 
 ## 设备占用
 
@@ -72,9 +75,10 @@
 
 续期与释放：
 
-- HTTP 请求、心跳 `PUT /api/v1/devices/:id/presence`、WebSocket 收发都会刷新 `LastSeen`。
+- HTTP 请求、心跳 `PUT /api/v1/devices/:id/presence` 都会刷新 `LastSeen`。
+- 正在传输的 WebSocket 流（`scrcpy` / `frames`）注册期间不参与空闲回收：持续出画面但没有 HTTP 请求也算活跃；流断开时刷新 `LastSeen`。
 - 空闲超过 `idle_timeout` 后自动释放，并关闭 uiautodev 自己开启的 adbkit 本地转发端口（不执行 `adb disconnect`）。
-- 页面卸载时 `DELETE .../presence` 释放会话，最后一个会话离开后有 30 秒宽限期。
+- 页面卸载时 `DELETE .../presence` 释放会话，最后一个会话离开后有 30 秒宽限期；释放会同时关闭该会话的 WebSocket 流。
 - `DELETE /api/v1/devices/:id/connect` 会强制释放整台设备。
 - `/api/v1/devices/:id/meta` 属于被动请求：只续期已有会话，不会因为修改备注而占用设备。
 
@@ -96,11 +100,13 @@
 | 接口 | 观察者 | 控制者 |
 |---|---|---|
 | 设备信息、`/meta`、截图、screens、uitree、window/size、encoders、apps 列表、clipboard GET | ✅ | ✅ |
-| `stream/.../scrcpy`、`mjpeg`、`frames` | ✅ | ✅ |
+| `stream/.../scrcpy`、`mjpeg`、`frames` | ✅ 只出画面，注入的输入事件被服务端丢弃 | ✅ |
 | `actions/*`、`shell`、`GET/DELETE connect`、clipboard PUT、apps start/stop | ❌ 403 `read_only` | ✅ |
 | `/proxy/devices/:id/*` | ❌ 403 `read_only` | ✅ |
 
 `allow_observers=false` 时，被占用设备的读接口也返回 423。
+
+观察者的只读在服务端生效，而不只依赖前端 `control=false`：`scrcpy` 与 `frames` 是双向 WebSocket，服务端会丢弃观察者发来的输入消息，所以观察者无法通过该连接操作设备。
 
 ## MCP
 
@@ -125,7 +131,7 @@ MCP 使用 `mcp_token` 认证，请求身份固定为 `mcp:admin`（显示名 `M
 
 | HTTP | 场景 |
 |---|---|
-| 401 | `require_identity=true` 且无身份 |
+| 401 | `require_identity=true` 且匿名的 API / 设备流请求 |
 | 403 | 观察者调用控制接口（`read_only`） |
 | 409 | 会话已被抢占（`preempted`，带 notice） |
 | 423 | 设备被他人控制（`device_busy`，带 Occupancy） |

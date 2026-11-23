@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -180,6 +181,57 @@ func TestMeEndpoint(t *testing.T) {
 	}
 	if body.Data.ID == "" {
 		t.Fatalf("expected identity id")
+	}
+}
+
+// TestAccessConfigAuthOnlyKeepsPresenceDefaults covers the documented
+// oauth2-proxy deployment: config.json only carries access.auth, so the
+// presence section keeps its defaults instead of silently disabling occupancy.
+func TestAccessConfigAuthOnlyKeepsPresenceDefaults(t *testing.T) {
+	path := useTempConfig(t)
+	raw := `{"access":{"auth":{"trusted_proxies":["127.0.0.1/32"]}}}`
+	if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	ResetAccessConfigCache()
+
+	cfg := getAccessConfig()
+	if !cfg.Presence.Enabled {
+		t.Fatalf("presence must stay enabled when only access.auth is configured")
+	}
+	if !cfg.Presence.AllowObservers {
+		t.Fatalf("observers must stay allowed when only access.auth is configured")
+	}
+	if cfg.Presence.ConflictPolicy != ConflictPolicyPreempt {
+		t.Fatalf("unexpected policy: %s", cfg.Presence.ConflictPolicy)
+	}
+	if cfg.Presence.IdleTimeout != IdleTimeout10m {
+		t.Fatalf("unexpected idle timeout: %s", cfg.Presence.IdleTimeout)
+	}
+	if len(cfg.Auth.TrustedProxies) != 1 || cfg.Auth.TrustedProxies[0] != "127.0.0.1/32" {
+		t.Fatalf("auth section lost: %+v", cfg.Auth)
+	}
+}
+
+// TestAccessConfigExplicitFalseIsKept makes sure filling the defaults does not
+// override values the user actually turned off.
+func TestAccessConfigExplicitFalseIsKept(t *testing.T) {
+	path := useTempConfig(t)
+	raw := `{"access":{"presence":{"enabled":false,"allow_observers":false}}}`
+	if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	ResetAccessConfigCache()
+
+	cfg := getAccessConfig()
+	if cfg.Presence.Enabled {
+		t.Fatalf("presence.enabled=false was ignored")
+	}
+	if cfg.Presence.AllowObservers {
+		t.Fatalf("presence.allow_observers=false was ignored")
+	}
+	if cfg.Presence.ConflictPolicy != ConflictPolicyPreempt || cfg.Presence.IdleTimeout != IdleTimeout10m {
+		t.Fatalf("unspecified presence keys should keep their defaults: %+v", cfg.Presence)
 	}
 }
 

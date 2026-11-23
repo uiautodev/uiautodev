@@ -92,6 +92,10 @@ type presenceSession struct {
 	Remote    string
 	UA        string
 	kicks     map[int]func(reason string)
+	// streams counts the websocket streams attached to the session. A session
+	// with an open stream is activity even when it sends no HTTP requests, so
+	// the idle sweeper leaves it alone.
+	streams int
 }
 
 type devicePresence struct {
@@ -115,6 +119,11 @@ type PresenceManager struct {
 	onIdle     func(deviceID string)
 	nextKickID int
 	now        func() time.Time
+
+	// beforeIdleRelease is a test seam that runs after the sweeper decided to
+	// release a device and before the idle claim is re-checked, so a concurrent
+	// re-acquire can be reproduced deterministically. Nil in production.
+	beforeIdleRelease func(deviceID string)
 
 	stop chan struct{}
 	once sync.Once
@@ -326,23 +335,37 @@ func (m *PresenceManager) Touch(deviceID, sessionID string) {
 	}
 }
 
-// Release removes one session. When the last session leaves, the device enters
-// the release grace period.
+// Release removes one session and closes its streams. When the last session
+// leaves, the device enters the release grace period.
 func (m *PresenceManager) Release(deviceID, sessionID string) {
 	now := m.now()
+	var kicks []func(string)
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	device := m.devices[deviceID]
 	if device == nil {
+		m.mu.Unlock()
 		return
 	}
-	if _, ok := device.sessions[sessionID]; !ok {
+	session, ok := device.sessions[sessionID]
+	if !ok {
+		m.mu.Unlock()
 		return
+	}
+	for _, kick := range session.kicks {
+		kicks = append(kicks, kick)
 	}
 	delete(device.sessions, sessionID)
 	if len(device.sessions) == 0 {
 		delete(m.devices, deviceID)
 		m.emptySince[deviceID] = now
+	}
+	m.mu.Unlock()
+
+	// Without closing the streams a released session keeps its screen and input
+	// connection alive; the device is then handed to the next user while the
+	// previous one can still operate it.
+	for _, kick := range kicks {
+		kick("device session released")
 	}
 }
 
@@ -508,6 +531,11 @@ func (m *PresenceManager) sweep(now time.Time) {
 	for deviceID, device := range m.devices {
 		idleReaped := false
 		for sessionID, session := range device.sessions {
+			// An open stream is activity: a session that keeps rendering must
+			// not be reaped just because it sends no HTTP requests.
+			if session.streams > 0 {
+				continue
+			}
 			if now.Sub(session.LastSeen) > idle {
 				delete(device.sessions, sessionID)
 				idleReaped = true
@@ -545,10 +573,30 @@ func (m *PresenceManager) sweep(now time.Time) {
 		kick("device released after idle timeout")
 	}
 	for _, deviceID := range releases {
+		if m.beforeIdleRelease != nil {
+			m.beforeIdleRelease(deviceID)
+		}
+		// The release candidate was collected while the device was empty. A
+		// request may have acquired it since: releasing now would close the adb
+		// connection of the new session.
+		if !m.claimIdleRelease(deviceID) {
+			continue
+		}
 		if m.onIdle != nil {
 			m.onIdle(deviceID)
 		}
 	}
+}
+
+// claimIdleRelease re-checks under the lock that the device is still idle.
+func (m *PresenceManager) claimIdleRelease(deviceID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if device := m.devices[deviceID]; device != nil && len(device.sessions) > 0 {
+		return false
+	}
+	delete(m.emptySince, deviceID)
+	return true
 }
 
 // presenceSessionRef identifies the session a request acts on.
@@ -568,6 +616,10 @@ func presenceSessionFromContext(ctx context.Context) *presenceSessionRef {
 // RegisterStreamConn registers a websocket connection with the request's
 // presence session so preemption and idle release can close it. It returns an
 // unregister function (nil when the request has no session).
+//
+// While the stream is attached the session is exempt from idle reaping: a
+// screen stream that keeps rendering is activity even though it carries no HTTP
+// requests.
 func (m *PresenceManager) RegisterStreamConn(ctx context.Context, conn *websocket.Conn) func() {
 	ref := presenceSessionFromContext(ctx)
 	if ref == nil {
@@ -581,7 +633,13 @@ func (m *PresenceManager) RegisterStreamConn(ctx context.Context, conn *websocke
 		)
 		_ = conn.Close()
 	}
+	return m.attachStream(ref, kick)
+}
 
+// attachStream registers the kick callback of one stream connection and marks
+// the session as streaming. It returns an unregister function (nil when the
+// session no longer exists).
+func (m *PresenceManager) attachStream(ref *presenceSessionRef, kick func(string)) func() {
 	m.mu.Lock()
 	session := m.sessionLocked(ref.DeviceID, ref.SessionID)
 	if session == nil {
@@ -594,20 +652,42 @@ func (m *PresenceManager) RegisterStreamConn(ctx context.Context, conn *websocke
 	m.nextKickID++
 	id := m.nextKickID
 	session.kicks[id] = kick
+	session.streams++
+	session.LastSeen = m.now()
 	m.mu.Unlock()
 
+	var once sync.Once
 	return func() {
-		m.mu.Lock()
-		defer m.mu.Unlock()
-		if session := m.sessionLocked(ref.DeviceID, ref.SessionID); session != nil {
-			delete(session.kicks, id)
-		}
+		once.Do(func() {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			if session := m.sessionLocked(ref.DeviceID, ref.SessionID); session != nil {
+				delete(session.kicks, id)
+				if session.streams > 0 {
+					session.streams--
+				}
+				session.LastSeen = m.now()
+			}
+		})
 	}
 }
 
 // RegisterStreamConn is the package-level hook installed on the device package.
 func RegisterStreamConn(ctx context.Context, conn *websocket.Conn) func() {
 	return presenceManagerInstance.RegisterStreamConn(ctx, conn)
+}
+
+// StreamReadOnly reports whether the stream request belongs to a view-only
+// session. The scrcpy and screen-frames websockets are bidirectional, so the
+// device layer must drop input messages from observers instead of relying on the
+// frontend to disable controls.
+func StreamReadOnly(ctx context.Context) bool {
+	ref := presenceSessionFromContext(ctx)
+	if ref == nil {
+		return false
+	}
+	mode, ok := presenceManagerInstance.Mode(ref.DeviceID, ref.SessionID)
+	return ok && mode == AccessModeView
 }
 
 // isControlRequest reports whether the request mutates or controls a device.

@@ -1,6 +1,7 @@
 package webserver
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -116,10 +117,68 @@ type PresenceAccessConfig struct {
 	AllowObservers bool           `json:"allow_observers"`
 }
 
+// UnmarshalJSON treats absent keys as "use the default" instead of as the bool
+// zero value. Both Enabled and AllowObservers default to true, so a config.json
+// that only sets access.auth (the oauth2-proxy example in the docs) must not
+// silently disable presence. Values that are present, including explicit
+// false, are kept.
+func (p *PresenceAccessConfig) UnmarshalJSON(data []byte) error {
+	type shadow struct {
+		Enabled        *bool           `json:"enabled"`
+		ConflictPolicy *ConflictPolicy `json:"conflict_policy"`
+		IdleTimeout    *IdleTimeout    `json:"idle_timeout"`
+		AllowObservers *bool           `json:"allow_observers"`
+	}
+	var s shadow
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	out := defaultAccessConfig().Presence
+	if s.Enabled != nil {
+		out.Enabled = *s.Enabled
+	}
+	if s.ConflictPolicy != nil {
+		out.ConflictPolicy = *s.ConflictPolicy
+	}
+	if s.IdleTimeout != nil {
+		out.IdleTimeout = *s.IdleTimeout
+	}
+	if s.AllowObservers != nil {
+		out.AllowObservers = *s.AllowObservers
+	}
+	*p = out
+	return nil
+}
+
 // AccessConfig is the persisted access section of config.json.
 type AccessConfig struct {
 	Auth     AuthAccessConfig     `json:"auth"`
 	Presence PresenceAccessConfig `json:"presence"`
+}
+
+// UnmarshalJSON starts from the defaults so an access section that only carries
+// auth (or only some presence keys) keeps the documented defaults for the rest.
+func (a *AccessConfig) UnmarshalJSON(data []byte) error {
+	type shadow struct {
+		Auth     *AuthAccessConfig     `json:"auth"`
+		Presence *PresenceAccessConfig `json:"presence"`
+	}
+	var s shadow
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	out := defaultAccessConfig()
+	if s.Auth != nil {
+		out.Auth = *s.Auth
+		if out.Auth.TrustedProxies == nil {
+			out.Auth.TrustedProxies = []string{}
+		}
+	}
+	if s.Presence != nil {
+		out.Presence = *s.Presence
+	}
+	*a = out
+	return nil
 }
 
 // releaseGrace is the fixed delay between the last session leaving a device and

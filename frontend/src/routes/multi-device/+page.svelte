@@ -28,9 +28,17 @@
   let activatedDeviceId: string | null = $state(null);
   let colCount = $state(4);
   let occupancy: Record<string, Occupancy> = $state({});
+  // Devices the user switched to observing. The 30s heartbeat must renew them
+  // in view mode: asking for control again would return busy and flip the
+  // running stream back to the placeholder.
+  let observedIds: Record<string, true> = $state({});
   let timers: Array<ReturnType<typeof setInterval>> = [];
 
   const mineId = $derived(identityStore.me?.id ?? "");
+
+  function modeFor(deviceId: string): "control" | "view" {
+    return observedIds[deviceId] ? "view" : "control";
+  }
 
   async function refreshPresence() {
     const known = new Set(devices.map((device) => device.id));
@@ -38,7 +46,9 @@
     if (activatedDeviceId && known.has(activatedDeviceId)) ids.add(activatedDeviceId);
     if (ids.size === 0) return;
     try {
-      const entries = Object.fromEntries(Array.from(ids).map((id) => [id, { mode: "control" as const }]));
+      const entries = Object.fromEntries(
+        Array.from(ids).map((id) => [id, { mode: modeFor(id) as "control" | "view" }]),
+      );
       occupancy = { ...occupancy, ...(await putPresenceBatch(entries)) };
     } catch (e) {
       console.error("failed to refresh group presence", e);
@@ -46,12 +56,19 @@
   }
 
   async function observe(deviceId: string) {
+    observedIds[deviceId] = true;
     try {
       const result = await putPresenceBatch({ [deviceId]: { mode: "view" } });
       occupancy = { ...occupancy, ...result };
     } catch (e) {
       console.error("failed to observe device", e);
     }
+  }
+
+  async function activate(deviceId: string) {
+    delete observedIds[deviceId];
+    activatedDeviceId = deviceId;
+    await refreshPresence();
   }
 
   function toggleAll(event: Event) {
@@ -75,6 +92,7 @@
     const removed = previousSelection.filter((id) => !current.includes(id));
     previousSelection = current;
     for (const id of removed) void deleteDevicePresence(id).catch(() => {});
+    for (const id of removed) delete observedIds[id];
   });
 
   onMount(async () => {
@@ -104,7 +122,8 @@
 {#snippet myphone(device: APIDevice)}
   <div class="inline-block p-2 relative" style={`width: calc(1/${colCount}*100%);`}>
     {#if isBusy(device.id)}
-      <div class="aspect-[9/16] w-full rounded-md border border-border bg-muted/60 flex flex-col items-center justify-center gap-2 p-2">
+      <div
+        class="aspect-[9/16] w-full rounded-md border border-border bg-muted/60 flex flex-col items-center justify-center gap-2 p-2">
         <AvatarStack occupants={occupancy[device.id]?.occupants ?? []} {mineId} size={24} max={3} />
         <span class="text-center text-xs text-muted-foreground">{$t("presence.state.busy")}</span>
         {#if occupancy[device.id]?.can_observe}
@@ -125,7 +144,7 @@
         maxSize={512}
         deviceId={device.id}
         control={false}
-        onclick={() => (activatedDeviceId = device.id)} />
+        onclick={() => void activate(device.id)} />
     {/if}
   </div>
 {/snippet}
@@ -199,11 +218,7 @@
               {#key activatedDeviceId}
                 {#if isBusy(activatedDeviceId)}
                   <div class="flex h-full w-full flex-col items-center justify-center gap-3">
-                    <AvatarStack
-                      occupants={occupancy[activatedDeviceId]?.occupants ?? []}
-                      {mineId}
-                      size={32}
-                      max={4} />
+                    <AvatarStack occupants={occupancy[activatedDeviceId]?.occupants ?? []} {mineId} size={32} max={4} />
                     <span class="text-sm text-muted-foreground">{$t("presence.state.busy")}</span>
                   </div>
                 {:else}
@@ -211,7 +226,7 @@
                     maxFps={30}
                     maxSize={1024}
                     deviceId={activatedDeviceId}
-                    control={true}
+                    control={!observedIds[activatedDeviceId]}
                     class="h-full w-full" />
                 {/if}
               {/key}

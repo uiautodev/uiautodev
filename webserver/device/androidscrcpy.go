@@ -54,7 +54,11 @@ func (s *ScrcpyService) Wait() error {
 	return <-s.quitChan
 }
 
-func (s *ScrcpyService) Start(rwc io.ReadWriter) (err error) {
+// Start starts the scrcpy server, pipes video to rwc and, when control is true,
+// relays input events from rwc. With control=false the control socket is still
+// opened (the server waits for it before streaming) but every input message from
+// the client is dropped.
+func (s *ScrcpyService) Start(rwc io.ReadWriter, control bool) (err error) {
 	defer func() {
 		if err != nil {
 			slog.Error("scrcpy service start failed:", "serial", s.serial, "err", err)
@@ -71,10 +75,29 @@ func (s *ScrcpyService) Start(rwc io.ReadWriter) (err error) {
 	if err := s.pipeVideo(rwc); err != nil {
 		return err
 	}
-	if err := s.pipeControl(rwc); err != nil {
+	reader := io.Reader(rwc)
+	if !control {
+		reader = &discardingReader{r: rwc}
+	}
+	if err := s.pipeControl(reader); err != nil {
 		return err
 	}
 	return nil
+}
+
+// discardingReader reads the websocket so a disconnect is still detected but
+// throws the data away, which keeps a view-only session from injecting input.
+type discardingReader struct {
+	r   io.Reader
+	buf []byte
+}
+
+func (d *discardingReader) Read(p []byte) (int, error) {
+	if len(d.buf) < len(p) {
+		d.buf = make([]byte, len(p))
+	}
+	n, err := d.r.Read(d.buf[:len(p)])
+	return n, err
 }
 
 func (s *ScrcpyService) Stop() error {
@@ -267,7 +290,7 @@ func (w *WebsocketRWWrapper) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
-func handleAndroidScrcpyWebSocket(conn *websocket.Conn, serial string, extraArgs []string) error {
+func handleAndroidScrcpyWebSocket(conn *websocket.Conn, serial string, extraArgs []string, readOnly bool) error {
 	// 1. push scrcpy.jar to device
 	// 2. start scrcpy server on device
 	// 3. forward port
@@ -278,7 +301,7 @@ func handleAndroidScrcpyWebSocket(conn *websocket.Conn, serial string, extraArgs
 		return err
 	}
 	slog.Info("Starting scrcpy websocket service", "serial", serial)
-	if err = scrcpyService.Start(&WebsocketRWWrapper{conn: conn}); err != nil {
+	if err = scrcpyService.Start(&WebsocketRWWrapper{conn: conn}, !readOnly); err != nil {
 		return err
 	}
 	defer scrcpyService.Stop()

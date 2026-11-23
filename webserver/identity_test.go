@@ -152,6 +152,90 @@ func TestIdentityBearerSession(t *testing.T) {
 	}
 }
 
+// TestIdentityFallbackSessionIncludesIdentity covers scripts that carry neither
+// a cookie nor a bearer token: two users behind the same trusted proxy (or two
+// Basic Auth accounts) share an IP and user agent, so the deterministic fallback
+// session must include the resolved identity or the second one silently reuses
+// the first one's presence session.
+func TestIdentityFallbackSessionIncludesIdentity(t *testing.T) {
+	cfg := defaultAccessConfig()
+	cfg.Auth.TrustedProxies = []string{"127.0.0.1/32"}
+	e := echo.New()
+
+	resolve := func(headers map[string]string, username string) *requestIdentity {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/probe", nil)
+		req.RemoteAddr = "127.0.0.1:4444"
+		req.Header.Set("User-Agent", "shared-agent")
+		for key, value := range headers {
+			req.Header.Set(key, value)
+		}
+		c := e.NewContext(req, httptest.NewRecorder())
+		if username != "" {
+			c.Set("username", username)
+		}
+		return resolveIdentity(c, cfg)
+	}
+
+	alice := resolve(map[string]string{"X-Forwarded-User": "alice"}, "")
+	aliceAgain := resolve(map[string]string{"X-Forwarded-User": "alice"}, "")
+	bob := resolve(map[string]string{"X-Forwarded-User": "bob"}, "")
+	if alice.SessionID == bob.SessionID {
+		t.Fatalf("different proxy users share a session: %s", alice.SessionID)
+	}
+	if aliceAgain.SessionID != alice.SessionID {
+		t.Fatalf("the same proxy user must keep a stable session")
+	}
+
+	loginA := resolve(nil, "alice")
+	loginB := resolve(nil, "bob")
+	if loginA.SessionID == loginB.SessionID {
+		t.Fatalf("different login users share a session: %s", loginA.SessionID)
+	}
+
+	// Anonymous scripts keep the documented IP+User-Agent fallback.
+	anonA := resolve(nil, "")
+	anonB := resolve(nil, "")
+	if anonA.SessionID != anonB.SessionID {
+		t.Fatalf("anonymous fallback should stay stable for the same IP/UA")
+	}
+}
+
+func TestIdentityRequireIdentityOnlyGuardsAPITraffic(t *testing.T) {
+	useTempConfig(t)
+	cfg := defaultAccessConfig()
+	cfg.Auth.RequireIdentity = true
+	if _, err := setAccessConfig(cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	e := echo.New()
+	e.Use(identityMiddleware())
+	ok := func(c echo.Context) error { return c.NoContent(http.StatusOK) }
+	e.GET("/", ok)
+	e.GET("/api/v1/devices", ok)
+	e.GET("/mcp/tools", ok)
+	e.GET("/api/v1/me", ok)
+
+	cases := []struct {
+		path string
+		want int
+	}{
+		{path: "/", want: http.StatusOK},
+		{path: "/mcp/tools", want: http.StatusOK},
+		{path: "/api/v1/me", want: http.StatusOK},
+		{path: "/api/v1/devices", want: http.StatusUnauthorized},
+	}
+	for _, tc := range cases {
+		req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+		req.RemoteAddr = "203.0.113.5:1234"
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+		if rec.Code != tc.want {
+			t.Errorf("%s: got %d want %d (%s)", tc.path, rec.Code, tc.want, rec.Body.String())
+		}
+	}
+}
+
 func TestIdentityRequireIdentity(t *testing.T) {
 	useTempConfig(t)
 	cfg := defaultAccessConfig()

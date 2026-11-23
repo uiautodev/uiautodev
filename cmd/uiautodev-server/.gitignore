@@ -1,3 +1,4 @@
 uiautodev-server
 uiautodev-server-*
-frontend_build/
+# Embed stub created by `make test_setup`; may be a file or a directory.
+frontend_build

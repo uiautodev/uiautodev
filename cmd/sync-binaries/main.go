@@ -1,5 +1,6 @@
-// Command sync-binaries 从 S3 兼容存储同步构建所需的二进制到 binaries/。
-// 与 upload（cmd/publish-release）分开，只做读取。
+// Command sync-binaries syncs the binaries required for builds from
+// S3-compatible storage into binaries/. It is kept separate from the upload
+// path (cmd/publish-release) and only reads.
 package main
 
 import (
@@ -21,13 +22,13 @@ import (
 
 func main() {
 	var (
-		dir         = flag.String("dir", "binaries", "本地目标目录")
-		bucket      = flag.String("bucket", "uiautodev", "源 bucket")
-		prefix      = flag.String("prefix", "binaries/", "bucket 内的 key 前缀")
+		dir         = flag.String("dir", "binaries", "local target directory")
+		bucket      = flag.String("bucket", "uiautodev", "source bucket")
+		prefix      = flag.String("prefix", "binaries/", "key prefix inside the bucket")
 		endpoint    = flag.String("endpoint", os.Getenv("S3_ENDPOINT"), "S3 endpoint")
 		region      = flag.String("region", "auto", "S3 region")
-		concurrency = flag.Int("concurrency", 4, "并发下载数")
-		dryRun      = flag.Bool("dry-run", false, "只列出要下载的文件")
+		concurrency = flag.Int("concurrency", 4, "number of concurrent downloads")
+		dryRun      = flag.Bool("dry-run", false, "only list the files to download")
 	)
 	flag.Parse()
 
@@ -42,11 +43,11 @@ func main() {
 
 	objects, err := listObjects(context.Background(), client, *bucket, *prefix)
 	if err != nil {
-		log.Fatalf("列出 s3://%s/%s 失败: %v", *bucket, *prefix, err)
+		log.Fatalf("failed to list s3://%s/%s: %v", *bucket, *prefix, err)
 	}
 
 	items, skipped := planDownloads(objects, *dir, *prefix, localSize)
-	log.Printf("远端 %d 个对象，本地已是最新 %d 个，需要下载 %d 个", len(objects), skipped, len(items))
+	log.Printf("remote objects: %d, already up to date locally: %d, to download: %d", len(objects), skipped, len(items))
 	for _, item := range items {
 		log.Printf("  %s -> %s (%d bytes)", item.Key, item.Path, item.Size)
 	}
@@ -62,7 +63,7 @@ func main() {
 	for _, item := range items {
 		total += item.Size
 	}
-	log.Printf("同步完成：%d 个文件，%.1f MiB", len(items), float64(total)/(1<<20))
+	log.Printf("sync complete: %d files, %.1f MiB", len(items), float64(total)/(1<<20))
 }
 
 func listObjects(ctx context.Context, client *s3.Client, bucket, prefix string) ([]remoteObject, error) {

@@ -8,18 +8,19 @@ import (
 	"strings"
 )
 
-// manifestAsset 是 release.json 里的一条资产记录。
+// manifestAsset is a single asset entry in release.json.
 type manifestAsset struct {
 	Name string `json:"name"`
 }
 
-// releaseManifest 是应用内更新读取的 release.json 结构中上传需要的部分。
+// releaseManifest is the part of the release.json structure read by in-app
+// updates that upload needs.
 type releaseManifest struct {
 	Version string          `json:"version"`
 	Assets  []manifestAsset `json:"assets"`
 }
 
-// uploadItem 描述一个待上传的本地文件和它在 bucket 中的 key。
+// uploadItem describes a local file to upload and its key in the bucket.
 type uploadItem struct {
 	Path string
 	Key  string
@@ -33,13 +34,14 @@ func readManifest(path string) (releaseManifest, error) {
 	}
 	var manifest releaseManifest
 	if err := json.Unmarshal(data, &manifest); err != nil {
-		return releaseManifest{}, fmt.Errorf("解析 %s 失败: %w", path, err)
+		return releaseManifest{}, fmt.Errorf("failed to parse %s: %w", path, err)
 	}
 	return manifest, nil
 }
 
-// planUploads 按 manifest 里的资产列表生成上传计划：<prefix><version>/<name>。
-// 只上传清单里列出的文件，避免把目录里的临时产物也推到线上。
+// planUploads builds the upload plan from the assets listed in the manifest:
+// <prefix><version>/<name>. Only files listed in the manifest are uploaded, so
+// temporary files in the directory are never pushed to production.
 func planUploads(manifest releaseManifest, dir, prefix, version, manifestName string) ([]uploadItem, error) {
 	names := make([]string, 0, len(manifest.Assets)+1)
 	for _, asset := range manifest.Assets {
@@ -55,7 +57,7 @@ func planUploads(manifest releaseManifest, dir, prefix, version, manifestName st
 		}
 		info, err := os.Stat(filepath.Join(dir, name))
 		if err != nil {
-			return nil, fmt.Errorf("清单里的 %s 在 %s 中不存在: %w", name, dir, err)
+			return nil, fmt.Errorf("manifest asset %s does not exist in %s: %w", name, dir, err)
 		}
 		seen[name] = true
 		items = append(items, uploadItem{
@@ -75,7 +77,8 @@ func assetKey(prefix, version, name string) string {
 	return strings.TrimSuffix(prefix, "/") + "/" + key
 }
 
-// skipAsset 跳过 macOS 元数据和本地构建日志，与 upload.sh 的排除规则保持一致。
+// skipAsset skips macOS metadata and local build logs, matching the exclusion
+// rules in upload.sh.
 func skipAsset(name string) bool {
 	switch name {
 	case "", ".DS_Store":

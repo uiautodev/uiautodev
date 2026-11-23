@@ -5,20 +5,21 @@ import (
 	"strings"
 )
 
-// remoteObject 是远端 listing 里的一条记录。
+// remoteObject is an entry from the remote listing.
 type remoteObject struct {
 	Key  string
 	Size int64
 }
 
-// downloadItem 描述一次下载：远端 key 和本地路径。
+// downloadItem describes a single download: remote key and local path.
 type downloadItem struct {
 	Key  string
 	Path string
 	Size int64
 }
 
-// planDownloads 过滤目录占位对象，并跳过本地大小一致的已存在文件。
+// planDownloads filters out directory placeholder objects and skips existing
+// files whose local size already matches.
 func planDownloads(objects []remoteObject, dir, prefix string, sizeOf func(string) (int64, bool)) ([]downloadItem, int) {
 	items := make([]downloadItem, 0, len(objects))
 	skipped := 0
@@ -37,7 +38,8 @@ func planDownloads(objects []remoteObject, dir, prefix string, sizeOf func(strin
 	return items, skipped
 }
 
-// relativeKey 去掉前缀并拒绝空路径、绝对路径和穿越路径。
+// relativeKey strips the prefix and rejects empty paths, directory placeholders
+// and traversing paths.
 func relativeKey(prefix, key string) (string, bool) {
 	relative := strings.TrimPrefix(key, prefix)
 	relative = strings.TrimPrefix(relative, "/")
@@ -52,7 +54,7 @@ func relativeKey(prefix, key string) (string, bool) {
 	return relative, true
 }
 
-// isExecutableName 与 Makefile 里的 chmod 规则保持一致。
+// isExecutableName matches the chmod rules in the Makefile.
 func isExecutableName(name string) bool {
 	switch name {
 	case "adb", "ios":

@@ -1,8 +1,10 @@
-// Command publish-release 把发布产物上传到 S3 兼容存储（Cloudflare R2），
-// 并发布应用内更新使用的 updates/latest.json。
+// Command publish-release uploads release artifacts to S3-compatible storage
+// (Cloudflare R2) and publishes updates/latest.json, the manifest used by
+// in-app updates.
 //
-// 上传顺序固定为「先资产、后清单」，保证客户端不会看到资产还没传完的版本；
-// 只上传 release.json 清单里列出的文件。
+// The upload order is fixed: assets first, manifest last. This guarantees
+// clients never see a version whose assets are still being uploaded. Only the
+// files listed in the release.json manifest are uploaded.
 package main
 
 import (
@@ -23,23 +25,23 @@ import (
 
 func main() {
 	var (
-		dir       = flag.String("dir", "dist", "发布产物所在目录")
-		version   = flag.String("version", "", "版本号（可带 v 前缀；缺省时从 manifest 读取）")
-		bucket    = flag.String("bucket", "uiautodev", "目标 bucket")
-		prefix    = flag.String("prefix", "", "bucket 内的 key 前缀")
-		manifest  = flag.String("manifest", "release.json", "同时作为最新清单发布的文件")
-		latestKey = flag.String("latest-key", "updates/latest.json", "最新清单在 bucket 中的 key")
-		guardURL  = flag.String("latest-guard-url", "", "线上最新清单地址，用于避免把线上版本回退")
-		endpoint  = flag.String("endpoint", os.Getenv("S3_ENDPOINT"), "S3 endpoint，如 https://<account>.r2.cloudflarestorage.com")
+		dir       = flag.String("dir", "dist", "directory containing the release artifacts")
+		version   = flag.String("version", "", "version number (v prefix allowed; defaults to the manifest version)")
+		bucket    = flag.String("bucket", "uiautodev", "target bucket")
+		prefix    = flag.String("prefix", "", "key prefix inside the bucket")
+		manifest  = flag.String("manifest", "release.json", "file to also publish as the latest manifest")
+		latestKey = flag.String("latest-key", "updates/latest.json", "bucket key of the latest manifest")
+		guardURL  = flag.String("latest-guard-url", "", "URL of the online latest manifest, used to avoid rolling back the live version")
+		endpoint  = flag.String("endpoint", os.Getenv("S3_ENDPOINT"), "S3 endpoint, e.g. https://<account>.r2.cloudflarestorage.com")
 		region    = flag.String("region", "auto", "S3 region")
-		dryRun    = flag.Bool("dry-run", false, "只打印上传计划，不实际上传")
+		dryRun    = flag.Bool("dry-run", false, "only print the upload plan, do not upload")
 	)
 	flag.Parse()
 
 	manifestPath := filepath.Join(*dir, *manifest)
 	release, err := readManifest(manifestPath)
 	if err != nil {
-		log.Fatalf("读取清单 %s 失败: %v", manifestPath, err)
+		log.Fatalf("failed to read manifest %s: %v", manifestPath, err)
 	}
 
 	resolvedVersion := strings.TrimPrefix(strings.TrimSpace(*version), "v")
@@ -47,7 +49,7 @@ func main() {
 		resolvedVersion = strings.TrimPrefix(strings.TrimSpace(release.Version), "v")
 	}
 	if resolvedVersion == "" {
-		log.Fatal("无法确定版本号：-version 未指定，且清单里没有 version")
+		log.Fatal("cannot determine version: -version not set and the manifest has no version")
 	}
 
 	items, err := planUploads(release, *dir, *prefix, resolvedVersion, *manifest)
@@ -55,19 +57,19 @@ func main() {
 		log.Fatal(err)
 	}
 	if len(items) == 0 {
-		log.Fatalf("%s 里没有可上传的产物", *dir)
+		log.Fatalf("no artifacts to upload in %s", *dir)
 	}
 
 	var total int64
 	for _, item := range items {
 		total += item.Size
 	}
-	log.Printf("要上传 %d 个文件（%.1f MiB）到 s3://%s/%s%s/",
+	log.Printf("uploading %d files (%.1f MiB) to s3://%s/%s%s/",
 		len(items), float64(total)/(1<<20), *bucket, *prefix, resolvedVersion)
 	for _, item := range items {
 		log.Printf("  %s -> %s", filepath.Base(item.Path), item.Key)
 	}
-	log.Printf("  然后发布 %s -> s3://%s/%s", *manifest, *bucket, *latestKey)
+	log.Printf("  then publish %s -> s3://%s/%s", *manifest, *bucket, *latestKey)
 
 	if *dryRun {
 		return
@@ -85,7 +87,7 @@ func main() {
 
 	for _, item := range items {
 		if err := uploadFile(ctx, uploader, *bucket, item); err != nil {
-			log.Fatalf("上传 %s 失败: %v", item.Key, err)
+			log.Fatalf("failed to upload %s: %v", item.Key, err)
 		}
 		log.Printf("uploaded %s", item.Key)
 	}
@@ -110,7 +112,7 @@ func main() {
 		ContentType:  aws.String(contentTypeFor(*manifest)),
 		CacheControl: aws.String("no-cache"),
 	}); err != nil {
-		log.Fatalf("发布 %s 失败: %v", *latestKey, err)
+		log.Fatalf("failed to publish %s: %v", *latestKey, err)
 	}
 	log.Printf("published s3://%s/%s", *bucket, *latestKey)
 }

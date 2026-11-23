@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/uiautodev/uiautodev/internal/update"
 )
 
 func writeFile(t *testing.T, dir, name, content string) {
@@ -63,35 +65,15 @@ func TestContentTypeFor(t *testing.T) {
 	}
 }
 
-func TestReadManifest(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "release.json", `{"version":"1.2.3","assets":[{"name":"a.dmg"}]}`)
-
-	manifest, err := readManifest(filepath.Join(dir, "release.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if manifest.Version != "1.2.3" || len(manifest.Assets) != 1 || manifest.Assets[0].Name != "a.dmg" {
-		t.Fatalf("readManifest = %+v", manifest)
-	}
-
-	if _, err := readManifest(filepath.Join(dir, "missing.json")); err == nil {
-		t.Error("readManifest should fail for a missing file")
-	}
-}
-
 func TestPlanUploads(t *testing.T) {
 	dir := t.TempDir()
 	for _, name := range []string{"release.json", "a.dmg", "b.zip", "stray.bin", ".DS_Store", "build.log"} {
 		writeFile(t, dir, name, "x")
 	}
 
-	manifest := releaseManifest{
-		Version: "1.2.3",
-		Assets:  []manifestAsset{{Name: "a.dmg"}, {Name: "b.zip"}},
-	}
+	assets := []update.Asset{{Name: "a.dmg"}, {Name: "b.zip"}}
 
-	items, err := planUploads(manifest, dir, "", "1.2.3", "release.json")
+	items, err := planUploads(assets, dir, "", "1.2.3", "release.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,8 +105,8 @@ func TestPlanUploadsMissingAsset(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "release.json", "{}")
 
-	manifest := releaseManifest{Version: "1.2.3", Assets: []manifestAsset{{Name: "missing.dmg"}}}
-	if _, err := planUploads(manifest, dir, "", "1.2.3", "release.json"); err == nil {
+	assets := []update.Asset{{Name: "missing.dmg"}}
+	if _, err := planUploads(assets, dir, "", "1.2.3", "release.json"); err == nil {
 		t.Error("planUploads should fail when a manifest asset is missing on disk")
 	}
 }
@@ -134,8 +116,8 @@ func TestPlanUploadsWithPrefix(t *testing.T) {
 	writeFile(t, dir, "release.json", "{}")
 	writeFile(t, dir, "a.dmg", "x")
 
-	manifest := releaseManifest{Version: "1.2.3", Assets: []manifestAsset{{Name: "a.dmg"}}}
-	items, err := planUploads(manifest, dir, "uiautodev", "1.2.3", "release.json")
+	assets := []update.Asset{{Name: "a.dmg"}}
+	items, err := planUploads(assets, dir, "uiautodev", "1.2.3", "release.json")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -50,6 +50,24 @@ func TestBuildManifestRequiresAssets(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestReadManifest(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "release.json")
+	manifest := Manifest{Version: "1.2.3", Assets: []Asset{{Name: "app.dmg", Size: 1, SHA256: "abc"}}}
+	require.NoError(t, WriteManifest(path, manifest))
+
+	read, err := ReadManifest(path)
+	require.NoError(t, err)
+	assert.Equal(t, manifest, read)
+
+	_, err = ReadManifest(filepath.Join(t.TempDir(), "missing.json"))
+	require.Error(t, err)
+
+	bad := filepath.Join(t.TempDir(), "bad.json")
+	require.NoError(t, os.WriteFile(bad, []byte("{"), 0o644))
+	_, err = ReadManifest(bad)
+	require.Error(t, err)
+}
+
 func TestWriteManifest(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "release.json")
 	manifest := Manifest{Version: "1.2.3", Assets: []Asset{{Name: "app.dmg", Size: 1, SHA256: "abc"}}}

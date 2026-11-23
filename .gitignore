@@ -74,4 +74,4 @@ version/version.json
 .task/
 
 *.swp
-/publish-release
+/release

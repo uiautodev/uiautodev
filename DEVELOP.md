@@ -15,7 +15,7 @@ make dev
 
 以下需要安装的二进制：
 
-- rclone（可选，仅作为 S3 凭据来源；`make sync` 已改用内置命令）: https://rclone.org/downloads/
+- rclone（可选，仅作为 S3 凭据来源）: https://rclone.org/downloads/
 - golangci-lint: `brew install golangci-lint`
 
 ## 国内镜像
@@ -69,10 +69,10 @@ curl -X POST https://get.uiauto.dev/api/cache/refresh
 
 本机仍然可以全量打包（不依赖 Actions）：`./build.sh`，需要本机安装
 [wails3](https://golang.google.cn/)（版本与 `go.mod` 中的 wails v3 一致）、bun、`dmgbuild>=1.6.7`。
-上传产物由 `cmd/publish-release`、拉取 `binaries/` 由 `cmd/sync-binaries`（都是 AWS SDK，S3 兼容）完成，
-两者互不依赖：`./upload.sh` 上传，`make sync` 拉取。凭据优先读 `S3_*` / `R2_*` 环境变量，
-没有时从 `~/.config/rclone/rclone.conf` 的 `r2` remote 读取，所以本机不需要装 rclone。
-CI 构建时用 `scripts/download-binaries.sh` 从 `https://dl.uiauto.dev/binaries` 下载，不接触存储凭据。
+上传产物由 `cmd/release upload` 完成（AWS SDK，S3 兼容）：`./upload.sh` 上传，凭据优先读
+`S3_*` / `R2_*` 环境变量，没有时从 `~/.config/rclone/rclone.conf` 的 `r2` remote 读取，所以本机不需要装 rclone。
+构建所需的 `binaries/` 用 `scripts/download-binaries.sh all` 拉取（本地构建会自动调用，CI 同样使用该脚本），
+从 `https://dl.uiauto.dev/binaries` 下载，不接触存储凭据。
 
 对于 Apple Silicon ARM Mac
 

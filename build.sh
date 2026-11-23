@@ -106,7 +106,7 @@ build_mac() {
 # Generate the updater manifest for the published release assets
 generate_release_manifest() {
     log "${BLUE}[7/7]${NC} Generating release manifest..."
-    go run ./cmd/release-manifest -dir ./dist -version "$VERSION" -tag "$VERSION" -out ./dist/release.json >> "$LOG_FILE" 2>&1
+    go run ./cmd/release manifest -dir ./dist -version "$VERSION" -tag "$VERSION" -out ./dist/release.json >> "$LOG_FILE" 2>&1
     log "Release manifest generated"
 }
 
@@ -117,7 +117,7 @@ main() {
     log "========================================="
 
     generate_version
-    make sync
+    ./scripts/download-binaries.sh all
     make test
     clean_build
 

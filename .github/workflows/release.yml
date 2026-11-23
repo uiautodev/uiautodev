@@ -516,7 +516,7 @@ jobs:
 
           # 草稿阶段没有发布时间，先只取说明与链接
           gh release view "$TAG" --json body,url > "$RUNNER_TEMP/release.json"
-          go run ./cmd/release-manifest \
+          go run ./cmd/release manifest \
             -dir ./dist \
             -version "$VERSION" \
             -tag "$TAG" \
@@ -539,7 +539,7 @@ jobs:
           TAG="$GITHUB_REF_NAME"
           VERSION="${TAG#v}"
           gh release view "$TAG" --json body,publishedAt,url > "$RUNNER_TEMP/release.json"
-          go run ./cmd/release-manifest \
+          go run ./cmd/release manifest \
             -dir ./dist \
             -version "$VERSION" \
             -tag "$TAG" \
@@ -557,7 +557,7 @@ jobs:
           set -euo pipefail
           # 先传版本目录（含 release.json），最后发布 latest.json，
           # 保证客户端不会看到资产还没传完的版本。
-          go run ./cmd/publish-release \
+          go run ./cmd/release upload \
             -dir ./dist \
             -version "${VERSION#v}" \
             -bucket uiautodev \

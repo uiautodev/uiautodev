@@ -1,4 +1,4 @@
-.PHONY: setup test test_setup dev format sync build fe gen
+.PHONY: setup test test_setup dev format build fe gen
 
 # 新克隆项目后安装依赖（Go 模块 + 前端依赖）
 setup: setup_frontend
@@ -17,9 +17,6 @@ dev:
 
 format:
 	bun --cwd frontend prettier --write "src/**/*.svelte"
-
-sync:
-	go run ./cmd/sync-binaries
 
 build:
 	bun --cwd frontend build

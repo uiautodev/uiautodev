@@ -27,7 +27,7 @@ fi
 echo -e "Uploading version: ${GREEN}${VERSION}${NC}"
 
 # 凭据：S3_* / R2_* 环境变量优先，否则读 ~/.config/rclone/rclone.conf 的 r2 remote
-go run ./cmd/publish-release \
+go run ./cmd/release upload \
     -dir ./dist \
     -version "$VERSION" \
     -bucket "${S3_BUCKET:-uiautodev}" \

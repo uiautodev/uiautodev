@@ -7,7 +7,8 @@
 #
 # 默认按当前系统选择目标；CI 里直接传目标平台。默认从公开的
 # https://dl.uiauto.dev/binaries 拉取，避免依赖 rclone 与 R2 凭据。
-# 需要更新二进制本身时，仍然用 `make sync`（rclone）。
+# 需要更新二进制本身时，用 rclone 直接上传到 r2:uiautodev/binaries/，
+# 新增文件后记得同步更新下面的文件清单。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,15 +1,9 @@
-// Command publish-release uploads release artifacts to S3-compatible storage
-// (Cloudflare R2) and publishes updates/latest.json, the manifest used by
-// in-app updates.
-//
-// The upload order is fixed: assets first, manifest last. This guarantees
-// clients never see a version whose assets are still being uploaded. Only the
-// files listed in the release.json manifest are uploaded.
 package main
 
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -21,27 +15,33 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	"github.com/uiautodev/uiautodev/internal/s3store"
+	"github.com/uiautodev/uiautodev/internal/update"
 )
 
-func main() {
+// runUpload uploads the assets first and the latest manifest last, so clients
+// never see a version whose assets are still uploading.
+func runUpload(args []string) error {
+	fs := flag.NewFlagSet("upload", flag.ExitOnError)
 	var (
-		dir       = flag.String("dir", "dist", "directory containing the release artifacts")
-		version   = flag.String("version", "", "version number (v prefix allowed; defaults to the manifest version)")
-		bucket    = flag.String("bucket", "uiautodev", "target bucket")
-		prefix    = flag.String("prefix", "", "key prefix inside the bucket")
-		manifest  = flag.String("manifest", "release.json", "file to also publish as the latest manifest")
-		latestKey = flag.String("latest-key", "updates/latest.json", "bucket key of the latest manifest")
-		guardURL  = flag.String("latest-guard-url", "", "URL of the online latest manifest, used to avoid rolling back the live version")
-		endpoint  = flag.String("endpoint", os.Getenv("S3_ENDPOINT"), "S3 endpoint, e.g. https://<account>.r2.cloudflarestorage.com")
-		region    = flag.String("region", "auto", "S3 region")
-		dryRun    = flag.Bool("dry-run", false, "only print the upload plan, do not upload")
+		dir       = fs.String("dir", "dist", "directory containing the release artifacts")
+		version   = fs.String("version", "", "version number (v prefix allowed; defaults to the manifest version)")
+		bucket    = fs.String("bucket", "uiautodev", "target bucket")
+		prefix    = fs.String("prefix", "", "key prefix inside the bucket")
+		manifest  = fs.String("manifest", "release.json", "file to also publish as the latest manifest")
+		latestKey = fs.String("latest-key", "updates/latest.json", "bucket key of the latest manifest")
+		guardURL  = fs.String("latest-guard-url", "", "URL of the online latest manifest, used to avoid rolling back the live version")
+		endpoint  = fs.String("endpoint", os.Getenv("S3_ENDPOINT"), "S3 endpoint, e.g. https://<account>.r2.cloudflarestorage.com")
+		region    = fs.String("region", "auto", "S3 region")
+		dryRun    = fs.Bool("dry-run", false, "only print the upload plan, do not upload")
 	)
-	flag.Parse()
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	manifestPath := filepath.Join(*dir, *manifest)
-	release, err := readManifest(manifestPath)
+	release, err := update.ReadManifest(manifestPath)
 	if err != nil {
-		log.Fatalf("failed to read manifest %s: %v", manifestPath, err)
+		return fmt.Errorf("read manifest %s: %w", manifestPath, err)
 	}
 
 	resolvedVersion := strings.TrimPrefix(strings.TrimSpace(*version), "v")
@@ -49,15 +49,15 @@ func main() {
 		resolvedVersion = strings.TrimPrefix(strings.TrimSpace(release.Version), "v")
 	}
 	if resolvedVersion == "" {
-		log.Fatal("cannot determine version: -version not set and the manifest has no version")
+		return fmt.Errorf("cannot determine version: -version not set and the manifest has no version")
 	}
 
-	items, err := planUploads(release, *dir, *prefix, resolvedVersion, *manifest)
+	items, err := planUploads(release.Assets, *dir, *prefix, resolvedVersion, *manifest)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if len(items) == 0 {
-		log.Fatalf("no artifacts to upload in %s", *dir)
+		return fmt.Errorf("no artifacts to upload in %s", *dir)
 	}
 
 	var total int64
@@ -72,36 +72,36 @@ func main() {
 	log.Printf("  then publish %s -> s3://%s/%s", *manifest, *bucket, *latestKey)
 
 	if *dryRun {
-		return
+		return nil
 	}
+
 	settings, err := s3store.Load(*endpoint, *region)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	client, err := settings.Client()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	uploader := transfermanager.New(client)
 	ctx := context.Background()
 
 	for _, item := range items {
 		if err := uploadFile(ctx, uploader, *bucket, item); err != nil {
-			log.Fatalf("failed to upload %s: %v", item.Key, err)
+			return fmt.Errorf("upload %s: %w", item.Key, err)
 		}
 		log.Printf("uploaded %s", item.Key)
 	}
 
-	if ok, reason := shouldPublishLatest(ctx, http.DefaultClient, *guardURL, resolvedVersion); !ok {
-		log.Print(reason)
-		return
-	} else {
-		log.Print(reason)
+	ok, reason := shouldPublishLatest(ctx, http.DefaultClient, *guardURL, resolvedVersion)
+	log.Print(reason)
+	if !ok {
+		return nil
 	}
 
 	file, err := os.Open(manifestPath)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer file.Close()
 
@@ -112,9 +112,10 @@ func main() {
 		ContentType:  aws.String(contentTypeFor(*manifest)),
 		CacheControl: aws.String("no-cache"),
 	}); err != nil {
-		log.Fatalf("failed to publish %s: %v", *latestKey, err)
+		return fmt.Errorf("publish %s: %w", *latestKey, err)
 	}
 	log.Printf("published s3://%s/%s", *bucket, *latestKey)
+	return nil
 }
 
 func uploadFile(ctx context.Context, uploader *transfermanager.Client, bucket string, item uploadItem) error {

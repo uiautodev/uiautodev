@@ -1,24 +1,13 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/uiautodev/uiautodev/internal/update"
 )
-
-// manifestAsset is a single asset entry in release.json.
-type manifestAsset struct {
-	Name string `json:"name"`
-}
-
-// releaseManifest is the part of the release.json structure read by in-app
-// updates that upload needs.
-type releaseManifest struct {
-	Version string          `json:"version"`
-	Assets  []manifestAsset `json:"assets"`
-}
 
 // uploadItem describes a local file to upload and its key in the bucket.
 type uploadItem struct {
@@ -27,24 +16,12 @@ type uploadItem struct {
 	Size int64
 }
 
-func readManifest(path string) (releaseManifest, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return releaseManifest{}, err
-	}
-	var manifest releaseManifest
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		return releaseManifest{}, fmt.Errorf("failed to parse %s: %w", path, err)
-	}
-	return manifest, nil
-}
-
 // planUploads builds the upload plan from the assets listed in the manifest:
 // <prefix><version>/<name>. Only files listed in the manifest are uploaded, so
 // temporary files in the directory are never pushed to production.
-func planUploads(manifest releaseManifest, dir, prefix, version, manifestName string) ([]uploadItem, error) {
-	names := make([]string, 0, len(manifest.Assets)+1)
-	for _, asset := range manifest.Assets {
+func planUploads(assets []update.Asset, dir, prefix, version, manifestName string) ([]uploadItem, error) {
+	names := make([]string, 0, len(assets)+1)
+	for _, asset := range assets {
 		names = append(names, asset.Name)
 	}
 	names = append(names, manifestName)
@@ -55,13 +32,14 @@ func planUploads(manifest releaseManifest, dir, prefix, version, manifestName st
 		if skipAsset(name) || seen[name] {
 			continue
 		}
-		info, err := os.Stat(filepath.Join(dir, name))
+		path := filepath.Join(dir, name)
+		info, err := os.Stat(path)
 		if err != nil {
 			return nil, fmt.Errorf("manifest asset %s does not exist in %s: %w", name, dir, err)
 		}
 		seen[name] = true
 		items = append(items, uploadItem{
-			Path: filepath.Join(dir, name),
+			Path: path,
 			Key:  assetKey(prefix, version, name),
 			Size: info.Size(),
 		})

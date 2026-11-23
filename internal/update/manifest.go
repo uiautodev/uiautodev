@@ -64,6 +64,19 @@ func BuildManifest(dir, version, tag, notes, releaseURL, publishedAt string) (Ma
 	}, nil
 }
 
+// ReadManifest reads a release.json manifest from path.
+func ReadManifest(path string) (Manifest, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Manifest{}, err
+	}
+	var manifest Manifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return Manifest{}, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return manifest, nil
+}
+
 // WriteManifest writes the manifest as indented JSON.
 func WriteManifest(path string, manifest Manifest) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

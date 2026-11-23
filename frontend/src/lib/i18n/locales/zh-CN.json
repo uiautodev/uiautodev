@@ -310,7 +310,8 @@
       "mcp": "MCP",
       "common": "常用",
       "plugin": "插件",
-      "pluginBadge": "插件"
+      "pluginBadge": "插件",
+      "terminal": "终端"
     },
     "inspect": {
       "refresh": "刷新",
@@ -365,6 +366,14 @@
       "ios": "iOS",
       "harmony": "HarmonyOS 型号",
       "demo": "演示"
+    },
+    "terminal": {
+      "tabTitle": "终端 {index}",
+      "new": "新建终端",
+      "close": "关闭终端",
+      "empty": "没有打开的终端",
+      "exited": "进程已退出，退出码 {code}",
+      "disconnected": "连接已断开"
     }
   },
   "screen": {

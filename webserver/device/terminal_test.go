@@ -195,6 +195,38 @@ func TestTerminalWebSocketSendsOutputAndExit(t *testing.T) {
 	awaitValue(t, session.closeCh, "session was not closed after the browser disconnected")
 }
 
+// The bridge must stay silent until the remote shell writes something, so the
+// terminal starts at the device prompt instead of an application banner.
+func TestTerminalWebSocketDoesNotSendBanner(t *testing.T) {
+	session := newFakeTerminalSession()
+
+	previousOpener := terminalSessionOpener
+	terminalSessionOpener = func(string, uint16, uint16) (TerminalSession, error) {
+		return session, nil
+	}
+	defer func() { terminalSessionOpener = previousOpener }()
+
+	e := echo.New()
+	e.GET("/stream/devices/:device_id/terminal", WSTerminalHandler)
+	server := httptest.NewServer(e)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/stream/devices/a-serial/terminal"
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	require.NoError(t, err)
+
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(200*time.Millisecond)))
+	_, _, err = conn.ReadMessage()
+	require.Error(t, err, "server sent a frame before the shell produced output")
+
+	session.exitCh <- 0
+	require.NoError(t, conn.Close())
+	awaitValue(t, session.closeCh, "session was not closed after the browser disconnected")
+}
+
 func TestTerminalWebSocketClosesSessionOnDisconnect(t *testing.T) {
 	session := newFakeTerminalSession()
 

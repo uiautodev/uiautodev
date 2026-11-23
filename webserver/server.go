@@ -502,6 +502,7 @@ func CreateEchoServerWithConfig(config ServerConfig) *echo.Echo {
 	e.GET("/stream/devices/:device_id/screen/scrcpy", device.WSScrcpyHandler)
 	e.GET("/stream/devices/:device_id/screen/mjpeg", device.MJPEGHandler)
 	e.GET("/stream/devices/:device_id/screen/frames", device.WSScreenFramesHandler)
+	e.GET("/stream/devices/:device_id/terminal", device.WSTerminalHandler)
 	// UI tree routes
 	e.POST("/api/v1/ui/xpath_query", uiXPathQueryHandler)
 	e.POST("/api/v1/ui/xml", uiXMLHandler)

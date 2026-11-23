@@ -101,6 +101,30 @@ export function subscribeDeviceList(
   };
 }
 
+/** Terminal control frames exchanged as JSON text frames; binary frames are PTY data. */
+export type TerminalMessageType = "resize" | "exit" | "error";
+
+export interface TerminalMessage {
+  type: TerminalMessageType;
+  rows?: number;
+  cols?: number;
+  code?: number;
+  message?: string;
+}
+
+/** WebSocket URL of the interactive terminal session for a local Android device. */
+export function getTerminalURL(deviceId: string, rows: number, cols: number): string {
+  const params = new URLSearchParams({ rows: String(rows), cols: String(cols) });
+  return `${baseWSURL}/stream/devices/${encodeURIComponent(deviceId)}/terminal?${params.toString()}`;
+}
+
+/** Tell the remote PTY about a new window size. */
+export function sendTerminalResize(socket: WebSocket, rows: number, cols: number): void {
+  if (socket.readyState !== WebSocket.OPEN) return;
+  const message: TerminalMessage = { type: "resize", rows, cols };
+  socket.send(JSON.stringify(message));
+}
+
 export async function getScreenshot(deviceId: string): Promise<Blob> {
   const res = await api.get<string>(`/api/v1/devices/${deviceId}/screenshot`);
   const base64Data = res.data;

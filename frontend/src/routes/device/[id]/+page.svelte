@@ -191,7 +191,7 @@
           <Resizable.Pane>
             <div class="relative flex-1 px-2 pt-2 h-full">
               {#if device?.platform}
-                <CardsContainer {deviceId} platform={device.platform} class="h-full" />
+                <CardsContainer {deviceId} platform={device.platform} remote={device.remote ?? false} class="h-full" />
               {/if}
               {#if readOnly}
                 <div class="absolute inset-0 flex items-center justify-center bg-background/60">

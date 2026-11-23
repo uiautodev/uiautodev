@@ -10,13 +10,18 @@
   import { deviceStore } from "$lib/stores/device.svelte";
   import Inspect from "../cards/inspect/Inspect.svelte";
   import MCP from "$lib/components/mcp/MCP.svelte";
+  import Terminal from "../cards/Terminal.svelte";
   import TabContent from "./TabContent.svelte";
   import { api } from "$lib/api/api.js";
   import type { Plugin as PluginData } from "$lib/api/schemas.js";
   import { t } from "svelte-i18n";
   import { onMount } from "svelte";
 
-  let { deviceId, platform, ...restProps } = $props();
+  let { deviceId, platform, remote = false, ...restProps } = $props();
+
+  // The interactive terminal relies on adb shell v2, which only local Android
+  // devices speak; remote cluster devices would need a tunnel.
+  const terminalEnabled = $derived(platform === "android" && !remote);
 
   // define cards here so page doesn't need to manage them
   const cards = [CurrentApp, Clipboard];
@@ -48,6 +53,8 @@
   <Tabs.Root bind:value={tabValue.current} class="background-white h-full flex flex-col">
     <Tabs.List>
       <Tabs.Trigger value="inspect" class="w-30">{$t("device.tabs.inspect")}</Tabs.Trigger>
+      <Tabs.Trigger disabled={!terminalEnabled} value="terminal" class="w-30"
+        >{$t("device.tabs.terminal")}</Tabs.Trigger>
       <Tabs.Trigger value="mcp" class="w-30">{$t("device.tabs.mcp")}</Tabs.Trigger>
       <Tabs.Trigger disabled={platform === "ios" || platform === "demo"} value="common" class="w-30"
         >{$t("device.tabs.common")}</Tabs.Trigger>
@@ -75,6 +82,9 @@
     </TabContent>
     <TabContent value="inspect">
       <Inspect />
+    </TabContent>
+    <TabContent value="terminal">
+      <Terminal {deviceId} active={tabValue.current === "terminal"} class="h-full" />
     </TabContent>
     <TabContent value="mcp">
       <MCP />

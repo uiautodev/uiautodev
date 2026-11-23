@@ -310,7 +310,8 @@
       "mcp": "MCP",
       "common": "Common",
       "plugin": "Plugins",
-      "pluginBadge": "Plugin"
+      "pluginBadge": "Plugin",
+      "terminal": "Terminal"
     },
     "inspect": {
       "refresh": "Refresh",
@@ -365,6 +366,14 @@
       "ios": "iOS",
       "harmony": "HarmonyOS model",
       "demo": "Demo model"
+    },
+    "terminal": {
+      "tabTitle": "Terminal {index}",
+      "new": "New terminal",
+      "close": "Close terminal",
+      "empty": "No open terminal",
+      "exited": "Process exited with code {code}",
+      "disconnected": "Connection lost"
     }
   },
   "screen": {

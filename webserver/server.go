@@ -355,6 +355,10 @@ func configHandler(config ServerConfig) echo.HandlerFunc {
 
 // setupMiddleware configures and applies middleware to the Echo instance
 func setupMiddleware(e *echo.Echo, config ServerConfig) {
+	// Server-Timing is registered first so it is the outermost middleware and
+	// even panic/404 responses report how long the server spent on them.
+	e.Use(serverTiming())
+
 	// Recovery middleware to recover from panics
 	e.Use(middleware.Recover())
 
@@ -379,6 +383,9 @@ func setupMiddleware(e *echo.Echo, config ServerConfig) {
 			},
 			AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
 			AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, apiTokenHeader},
+			// The dashboard runs from a different origin in server mode, so
+			// without this the Server Timing API would stay invisible there.
+			ExposeHeaders: []string{serverTimingHeader},
 		}))
 	}
 

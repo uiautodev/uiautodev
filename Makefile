@@ -9,8 +9,9 @@ test: test_setup
 	go test ./...
 
 test_setup:
-	test -d frontend/build || echo hello > frontend/build
-	test -d cmd/uiautodev-server/frontend_build || cp -r frontend/build cmd/uiautodev-server/frontend_build
+	test -d frontend/build || { rm -rf frontend/build; mkdir -p frontend/build && echo hello > frontend/build/index.html; }
+	@# A leftover file stub cannot be replaced by cp -r, so clear it before copying.
+	test -d cmd/uiautodev-server/frontend_build || { rm -f cmd/uiautodev-server/frontend_build; cp -r frontend/build cmd/uiautodev-server/frontend_build; }
 
 dev:
 	./scripts/dev.sh

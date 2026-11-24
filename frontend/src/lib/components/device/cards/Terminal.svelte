@@ -8,6 +8,7 @@
   import { Plus, X } from "lucide-svelte";
   import { getTerminalURL, sendTerminalResize, type TerminalMessage } from "$lib/api/api";
   import { themeStore } from "$lib/stores/theme.svelte";
+  import { cn } from "$lib/utils.js";
 
   let { deviceId, active = true, class: className = "", ...restProps } = $props();
 
@@ -308,26 +309,36 @@
   });
 </script>
 
-<div class={`flex h-full min-h-0 flex-col ${className}`} {...restProps}>
-  <div class="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border pb-1">
+<div class={`flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-background ${className}`} {...restProps}>
+  <div class="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-muted px-1 py-1">
     {#each tabs as tab (tab.id)}
       <div
-        class="group flex shrink-0 items-center gap-1 rounded-t-md border border-b-0 px-2 py-1 text-xs transition-colors"
-        class:border-border={tab.id === activeId}
-        class:bg-muted={tab.id === activeId}
-        class:text-foreground={tab.id === activeId}
-        class:border-transparent={tab.id !== activeId}
-        class:text-muted-foreground={tab.id !== activeId}>
-        <button type="button" class="flex items-center gap-1.5" onclick={() => activateTab(tab.id)}>
-          <span class={`size-1.5 rounded-full ${statusClass(tab.status)}`}></span>
-          <span>{$t("device.terminal.tabTitle", { values: { index: tab.index } })}</span>
-        </button>
+        class={cn(
+          "flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors",
+          tab.id === activeId
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
+        )}
+        role="tab"
+        tabindex="0"
+        aria-selected={tab.id === activeId}
+        onclick={() => activateTab(tab.id)}
+        onkeydown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          activateTab(tab.id);
+        }}>
+        <span class={`size-1.5 rounded-full ${statusClass(tab.status)}`}></span>
+        <span>{$t("device.terminal.tabTitle", { values: { index: tab.index } })}</span>
         <button
           type="button"
           class="rounded p-0.5 opacity-60 hover:bg-accent hover:text-accent-foreground hover:opacity-100"
           aria-label={$t("device.terminal.close")}
           title={$t("device.terminal.close")}
-          onclick={() => closeTab(tab.id)}>
+          onclick={(event) => {
+            event.stopPropagation();
+            closeTab(tab.id);
+          }}>
           <X class="size-3" />
         </button>
       </div>
@@ -341,12 +352,9 @@
       <Plus class="size-4" />
     </button>
   </div>
-  <div class="relative mt-1 min-h-0 flex-1">
+  <div class="relative min-h-0 flex-1">
     {#each tabs as tab (tab.id)}
-      <div
-        class="terminal-pane absolute inset-0 rounded-md border border-border bg-background"
-        class:hidden={tab.id !== activeId}
-        use:attachPane={tab.id}>
+      <div class="terminal-pane absolute inset-0" class:hidden={tab.id !== activeId} use:attachPane={tab.id}>
       </div>
     {/each}
     {#if tabs.length === 0}
@@ -360,5 +368,11 @@
 <style>
   .terminal-pane :global(.xterm) {
     padding: 4px;
+  }
+
+  /* xterm paints its viewport black by default, which shows through the
+     padding as dark bars; let the pane background show instead. */
+  .terminal-pane :global(.xterm .xterm-viewport) {
+    background-color: transparent;
   }
 </style>

@@ -69,13 +69,13 @@ var terminalSessionOpener = func(deviceID string, rows, cols uint16) (TerminalSe
 
 const terminalReadBufferSize = 32 * 1024
 
-// WSTerminalHandler bridges a websocket to an interactive Android shell.
+// WSTerminalHandler bridges a websocket to an interactive device shell.
 func WSTerminalHandler(c echo.Context) error {
 	deviceID := c.Param("device_id")
-	// Only local Android devices implement shell v2; remote cluster devices
-	// would need a tunnel that does not exist yet.
-	if !strings.HasPrefix(deviceID, "a-") {
-		return echo.NewHTTPError(http.StatusBadRequest, "terminal is only supported on local Android devices")
+	// Only local Android and HarmonyOS devices can host a shell; remote cluster
+	// devices would need a shell tunnel that does not exist yet.
+	if !strings.HasPrefix(deviceID, "a-") && !strings.HasPrefix(deviceID, "h-") {
+		return echo.NewHTTPError(http.StatusBadRequest, "terminal is only supported on local Android and HarmonyOS devices")
 	}
 
 	rows := terminalDimension(c, "rows")

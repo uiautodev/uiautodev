@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as Avatar from "$lib/components/ui/avatar/index.js";
   import UserAvatar from "$lib/components/UserAvatar.svelte";
   import type { Occupant } from "$lib/api/schemas";
 
@@ -28,22 +29,13 @@
   const hiddenCount = $derived(Math.max(0, ordered.length - max));
 </script>
 
-<div class="flex items-center">
-  {#each visible as occupant, index (occupant.id)}
-    <span class={index === 0 ? "" : "-ml-1.5"} title={occupant.name}>
-      <UserAvatar
-        id={occupant.id}
-        name={occupant.name}
-        avatarUrl={occupant.avatar_url}
-        {size}
-        class="ring-2 ring-background" />
-    </span>
+<Avatar.Group class="items-center -space-x-1.5">
+  {#each visible as occupant (occupant.id)}
+    <UserAvatar id={occupant.id} name={occupant.name} avatarUrl={occupant.avatar_url} {size} badge />
   {/each}
   {#if hiddenCount > 0}
-    <span
-      class="-ml-1.5 inline-flex items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground ring-2 ring-background"
-      style={`width:${size}px;height:${size}px`}>
+    <Avatar.GroupCount class="text-[10px] font-medium" style={`width:${size}px;height:${size}px`}>
       +{hiddenCount}
-    </span>
+    </Avatar.GroupCount>
   {/if}
-</div>
+</Avatar.Group>

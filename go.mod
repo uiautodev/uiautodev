@@ -15,6 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.116.0
 	github.com/codeskyblue/go-adbkit v0.4.0
 	github.com/codeskyblue/jsonc v0.1.1
+	github.com/creack/pty v1.1.24
 	github.com/danielpaulus/go-ios v1.0.202
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/websocket v1.5.3

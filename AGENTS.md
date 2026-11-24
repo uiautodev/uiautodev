@@ -12,6 +12,7 @@
 
 - 如果修改了前端的代码，一定要 bun run --cwd frontend check 一下，测试也要运行一下
 - svelte相关的操作尽量使用svelte mcp，还不清楚的就先网上查看一下
+- 写前端 UI 时优先从 shadcn-svelte 里找现成组件（https://www.shadcn-svelte.com/docs/components），能用就先用 `bun x shadcn-svelte@latest add <name>` 装到 `frontend/src/lib/components/ui/`，不要自己手写重复实现；只有组件库里确实没有合适组件时再自己写
 - 优先使用bun，而不是npm，bun指令需要在frontend目录下执行
 - 跟插件相关的文件 plugin.md plugin.go Plugin.svelte plugin_runtime.js plugin_runtime.d.ts 关联度很高，修改其中一个文件的时候，需要同时查看其他文件是否需要修改
 - 如果代码表达的很清楚了，就不用写多余的注释了

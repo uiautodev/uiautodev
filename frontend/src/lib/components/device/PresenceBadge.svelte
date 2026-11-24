@@ -49,16 +49,20 @@
   });
 
   const observers = $derived(occupancy?.observers ?? []);
+  const otherOccupants = $derived((occupancy?.occupants ?? []).filter((occupant) => occupant.id !== mineId));
+  const showStack = $derived(showAvatars && otherOccupants.length > 0);
 </script>
 
-<div class="flex items-center gap-2 min-w-0">
+<div class="flex shrink-0 items-center gap-2 min-w-0">
   {#if occupancy}
-    <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-sm {tone}">
-      <span class="size-2 rounded-full {dotClass}"></span>
-      {$t(`presence.state.${state}`)}
-    </span>
-    {#if showAvatars && (occupancy.occupants?.length ?? 0) > 0}
-      <AvatarStack occupants={occupancy.occupants ?? []} {mineId} size={20} max={3} />
+    {#if !showStack && state !== "mine"}
+      <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-sm {tone}">
+        <span class="size-2 rounded-full {dotClass}"></span>
+        {$t(`presence.state.${state}`)}
+      </span>
+    {/if}
+    {#if showStack}
+      <AvatarStack occupants={otherOccupants} {mineId} size={20} max={3} />
     {/if}
     {#if observers.length > 0}
       <span class="inline-flex items-center gap-0.5 text-xs text-muted-foreground" title={$t("presence.observers")}>

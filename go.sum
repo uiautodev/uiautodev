@@ -57,6 +57,8 @@ github.com/codeskyblue/go-adbkit v0.4.0 h1:tb+bsrEbHtTkmYzkMCM+hh7YWLFuWl+cX1JFQ
 github.com/codeskyblue/go-adbkit v0.4.0/go.mod h1:DkCO9KqYcOtsHP+/kcmJiTRDChKz4VzLqAahhkE7ZmY=
 github.com/codeskyblue/jsonc v0.1.1 h1:WE58rfX6cTXVvOce0QpTH+yydWTohNE+9cT37Tux4Ik=
 github.com/codeskyblue/jsonc v0.1.1/go.mod h1:VXXufR2vvNKcgXL7AiDHuna8HRgBQFotD2Tk3lSknmY=
+github.com/creack/pty v1.1.24 h1:bJrF4RRfyJnbTJqzRLHzcGaZK1NeM5kTC9jGgovnR1s=
+github.com/creack/pty v1.1.24/go.mod h1:08sCNb52WyoAwi2QDyzUCTgcvVFhUzewun7wtTfvcwE=
 github.com/danielpaulus/go-ios v1.0.202 h1:an/DY7rr7bQ5Bowc3Pw5zfMSYFjrEYD4lY557lt2GKM=
 github.com/danielpaulus/go-ios v1.0.202/go.mod h1:ZkUcaC59yNba47j/+ULKsCi3dYPFwY9r39PxdmVmLHE=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

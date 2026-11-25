@@ -38,7 +38,7 @@ Pushing an `x.y.z` tag builds and publishes the desktop app and server via `.git
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-addr` | `localhost:33299` | HTTP listen address |
+| `-addr` | `:33299` | HTTP listen address (all interfaces by default) |
 | `-open` | | Open the home page in a browser after the server starts (when `-addr` is of the form `:port`, opens `http://localhost:port/`) |
 | `-auth <user:pass>` | | Basic auth credentials (can be specified multiple times) |
 | `-proxy-log <file>` | | Proxy log path (no logging when empty) |

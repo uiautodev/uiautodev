@@ -10,7 +10,7 @@ This package only contains the npm launcher. It downloads the prebuilt UIAutoDev
 npx uiautodev
 ```
 
-After startup, the server listens on `http://127.0.0.1:33299` by default.
+After startup, the server listens on `:33299` (all interfaces) by default; open `http://localhost:33299` on the same machine.
 
 > The desktop app and server live in the same repository; this package is the supported `npx uiautodev` entry point.
 

@@ -44,6 +44,10 @@ func (s *stringSlice) Set(value string) error {
 	return nil
 }
 
+// defaultAddr listens on every interface so phones and other machines on the
+// LAN can reach the dashboard without extra flags.
+const defaultAddr = ":33299"
+
 //go:embed all:frontend_build
 var assets embed.FS
 
@@ -163,7 +167,7 @@ func runSlave(addr string, cfg webserver.ServerConfig, assets fs.FS, masterURL, 
 }
 
 func main() {
-	addr := flag.String("addr", "localhost:33299", "HTTP listen address")
+	addr := flag.String("addr", defaultAddr, "HTTP listen address")
 	openBrowser := flag.Bool("open", false, "open browser after server starts")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	verbose := flag.Bool("verbose", false, "enable debug level logging")

@@ -41,6 +41,9 @@ type IOSConfig struct {
 	WDA      int
 	MJPEG    int
 	BundleID string
+	// WDAConfigured reports whether WDA was explicitly set. Simulators use it
+	// to tell a real port override from the shared WebDriverAgent default.
+	WDAConfigured bool
 }
 
 var (
@@ -73,6 +76,7 @@ func resolveIOSConfig(udid string) IOSConfig {
 	configured := fn(udid)
 	if configured.WDA >= 1 && configured.WDA <= 65535 {
 		cfg.WDA = configured.WDA
+		cfg.WDAConfigured = true
 	}
 	if configured.MJPEG >= 1 && configured.MJPEG <= 65535 {
 		cfg.MJPEG = configured.MJPEG
@@ -259,30 +263,71 @@ func getDeviceWithRsdProvider(udid string) (ios.DeviceEntry, error) {
 // IOSDeviceManager implements DeviceEnumerator for iOS devices
 type IOSDeviceManager struct{}
 
-// ListSerials returns a list of iOS device serial numbers
+// ListSerials returns a list of iOS device serial numbers, including booted
+// simulators. Simulators are not on usbmuxd, so a failure there is not fatal
+// when the host still has simulators to offer.
 func (m *IOSDeviceManager) ListSerials() ([]string, error) {
+	physical := make([]string, 0)
 	result, err := ios.ListDevices()
 	if err != nil {
+		slog.Debug("list usbmuxd iOS devices failed", "error", err)
+	} else {
+		for _, device := range result.DeviceList {
+			physical = append(physical, device.Properties.SerialNumber)
+		}
+	}
+
+	simulators := make([]string, 0)
+	booted, simErr := listBootedSimulators()
+	if simErr != nil {
+		slog.Debug("list booted iOS simulators failed", "error", simErr)
+	} else {
+		for _, simulator := range booted {
+			simulators = append(simulators, simulator.UDID)
+		}
+	}
+
+	if err != nil && len(simulators) == 0 {
 		return nil, err
 	}
-	serials := make([]string, len(result.DeviceList))
-	for i, device := range result.DeviceList {
-		serials[i] = device.Properties.SerialNumber
-	}
-	return serials, nil
+	return mergeIOSSerials(physical, simulators), nil
 }
 
 type IOSDevice struct {
-	udid      string
-	wdaPort   int
-	mjpegPort int
-	wdaBundle string
-	wdaClient *WDAClient
+	udid          string
+	simulator     bool
+	wdaConfigured bool
+	wdaPort       int
+	mjpegPort     int
+	wdaBundle     string
+	wdaClient     *WDAClient
+	devicekit     *devicekitClient
 }
 
 func NewIOSDevice(udid string) *IOSDevice {
 	cfg := resolveIOSConfig(udid)
-	return &IOSDevice{udid: udid, wdaPort: cfg.WDA, mjpegPort: cfg.MJPEG, wdaBundle: cfg.BundleID}
+	device := &IOSDevice{udid: udid, wdaPort: cfg.WDA, mjpegPort: cfg.MJPEG, wdaBundle: cfg.BundleID}
+	if isSimulatorUDID(udid) {
+		device.simulator = true
+		device.wdaConfigured = cfg.WDAConfigured
+		var booted []string
+		if !device.wdaConfigured {
+			booted = bootedSimulatorUDIDs()
+		}
+		device.wdaPort = simulatorPort(udid, simulatorConfiguredPort(cfg), booted)
+		// The runner serves JSON-RPC and MJPEG on the same listener.
+		device.mjpegPort = device.wdaPort
+	}
+	return device
+}
+
+// simulatorConfiguredPort returns the explicitly configured port, or zero when
+// the resolver only supplied the shared default.
+func simulatorConfiguredPort(cfg IOSConfig) int {
+	if cfg.WDAConfigured {
+		return cfg.WDA
+	}
+	return 0
 }
 
 func (d *IOSDevice) wdaURL() string {
@@ -291,6 +336,18 @@ func (d *IOSDevice) wdaURL() string {
 
 // ios devicename这个命令跑起来没有idevicename速度快
 func (d *IOSDevice) deviceName() (string, error) {
+	if d.simulator {
+		devices, err := listBootedSimulators()
+		if err != nil {
+			return "", err
+		}
+		for _, simulator := range devices {
+			if simulator.UDID == d.udid {
+				return simulator.Name, nil
+			}
+		}
+		return "", fmt.Errorf("simulator %s is not booted", d.udid)
+	}
 	// output example: {"devicename":"iPhone"}
 	var result struct {
 		DeviceName string `json:"devicename"`
@@ -317,6 +374,9 @@ func (d *IOSDevice) Info() DeviceInfo {
 		"serial": d.udid,
 		// "name": deviceName,
 	}
+	if d.simulator {
+		props["simulator"] = true
+	}
 	return DeviceInfo{
 		Platform: "ios",
 		ID:       "i-" + d.udid,
@@ -325,9 +385,12 @@ func (d *IOSDevice) Info() DeviceInfo {
 	}
 }
 
-// CheckWDA checks if the iOS WebDriverAgent is running on this device
-// by attempting to connect to its WDA port via usbmuxd.
+// CheckWDA checks if the iOS automation server is running: WebDriverAgent for
+// physical devices, the devicekit health endpoint for simulators.
 func (d *IOSDevice) CheckWDA() bool {
+	if d.simulator {
+		return devicekitHealthy(d.wdaPort)
+	}
 	conn, err := d.newConnection(uint16(d.wdaPort))
 	if err != nil {
 		return false
@@ -371,6 +434,10 @@ func (d *IOSDevice) EnsureWDA() error {
 }
 
 func (d *IOSDevice) ensureWDA() error {
+	if d.simulator {
+		return d.ensureSimulatorRunner()
+	}
+
 	if d.wdaClient == nil {
 		roundTripper := &wdaRoundTripper{makeRequest: d.makeRequest}
 		d.wdaClient = NewWDAClientWithTransport(d.wdaURL(), roundTripper)
@@ -421,6 +488,44 @@ func (d *IOSDevice) ensureWDA() error {
 	return fmt.Errorf("iOS WebDriverAgent launched but is not reachable; unlock the device and retry")
 }
 
+// ensureSimulatorRunner starts the devicekit runner on a booted simulator.
+// The runner is installed from a pinned release on first use, so the first
+// interaction needs network access.
+func (d *IOSDevice) ensureSimulatorRunner() error {
+	if d.devicekit == nil {
+		d.devicekit = newDevicekitClient(d.wdaPort)
+	}
+	if confirmed, ok := simulatorRunnerConfirmations.Load(d.udid); ok && confirmed.(int) == d.wdaPort && d.CheckWDA() {
+		return nil
+	}
+
+	// A runner left behind by an earlier process can hold the port assigned to
+	// another simulator. Stop this simulator's runner, then any port that still
+	// answers belongs to someone else.
+	terminateSimulatorRunner(d.udid)
+	if d.CheckWDA() {
+		waitSimulatorPortReleased(d.wdaPort, 3*time.Second)
+	}
+	for attempts := 0; d.CheckWDA(); attempts++ {
+		if d.wdaConfigured {
+			return fmt.Errorf("simulator %s: port %d is already in use; set another WDA port in the device settings", d.udid, d.wdaPort)
+		}
+		if attempts > 100 {
+			return fmt.Errorf("no free port for simulator %s", d.udid)
+		}
+		d.wdaPort = nextSimulatorPort(d.udid)
+		d.mjpegPort = d.wdaPort
+		d.devicekit = newDevicekitClient(d.wdaPort)
+	}
+
+	slog.Info("starting devicekit runner for iOS simulator", "device", d.udid, "port", d.wdaPort)
+	if err := launchSimulatorRunner(d.udid, d.wdaPort); err != nil {
+		return errors.Wrap(err, "EnsureWDA")
+	}
+	simulatorRunnerConfirmations.Store(d.udid, d.wdaPort)
+	return nil
+}
+
 func (d *IOSDevice) launchWDA() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -443,12 +548,18 @@ func (d *IOSDevice) GetScreenSize() (int, int, error) {
 	if err := d.EnsureWDA(); err != nil {
 		return 0, 0, err
 	}
+	if d.simulator {
+		return d.devicekit.ScreenSize()
+	}
 	return d.wdaClient.GetScreenSize()
 }
 
 func (d *IOSDevice) Tap(x, y int) error {
 	if err := d.EnsureWDA(); err != nil {
 		return err
+	}
+	if d.simulator {
+		return d.devicekit.Tap(x, y)
 	}
 	return d.wdaClient.Tap(x, y)
 }
@@ -457,12 +568,18 @@ func (d *IOSDevice) Swipe(x1, y1, x2, y2, durationMs int) error {
 	if err := d.EnsureWDA(); err != nil {
 		return err
 	}
+	if d.simulator {
+		return d.devicekit.Swipe(x1, y1, x2, y2, durationMs)
+	}
 	return d.wdaClient.Swipe(x1, y1, x2, y2, durationMs)
 }
 
 func (d *IOSDevice) InputText(text string) error {
 	if err := d.EnsureWDA(); err != nil {
 		return err
+	}
+	if d.simulator {
+		return d.devicekit.InputText(text)
 	}
 	return d.wdaClient.InputText(text)
 }
@@ -471,6 +588,9 @@ func (d *IOSDevice) ClearText() error {
 	if err := d.EnsureWDA(); err != nil {
 		return err
 	}
+	if d.simulator {
+		return d.devicekit.ClearText()
+	}
 	return d.wdaClient.ClearText()
 }
 
@@ -478,10 +598,19 @@ func (d *IOSDevice) PressKey(keyName KeyName, metaState MetaState) error {
 	if err := d.EnsureWDA(); err != nil {
 		return err
 	}
+	if d.simulator {
+		return d.devicekit.PressKey(keyName, metaState)
+	}
 	return d.wdaClient.PressKey(keyName, metaState)
 }
 
 func (d *IOSDevice) Screenshot() (image.Image, error) {
+	if d.simulator {
+		if err := d.EnsureWDA(); err != nil {
+			return nil, err
+		}
+		return d.devicekit.Screenshot()
+	}
 	slog.Debug("Taking screenshot using CLI for iOS device", "device", d.udid)
 	return d.screenshotWithCli()
 }
@@ -560,6 +689,12 @@ func (d *IOSDevice) StartWebsocketStream(ctx context.Context, conn *websocket.Co
 	streamCtx, streamCancel := context.WithCancel(ctx)
 	defer streamCancel()
 
+	if d.simulator {
+		return d.devicekit.StreamMJPEG(streamCtx, func(frame []byte) error {
+			return conn.WriteMessage(websocket.BinaryMessage, frame)
+		})
+	}
+
 	rawConn, err := d.connectMJPEG(streamCtx)
 	if err != nil {
 		return errors.Wrap(err, "connect to WDA MJPEG server")
@@ -599,6 +734,9 @@ func (d *IOSDevice) StartWebsocketStream(ctx context.Context, conn *websocket.Co
 func (d *IOSDevice) GetUITree() (*Node, error) {
 	if err := d.EnsureWDA(); err != nil {
 		return nil, err
+	}
+	if d.simulator {
+		return d.devicekit.DumpUI()
 	}
 	req, err := http.NewRequest("GET", d.wdaURL()+"/source?format=json", nil)
 	if err != nil {
@@ -647,6 +785,12 @@ func (d *IOSDevice) makeRequest(req *http.Request) (*http.Response, error) {
 }
 
 func (d *IOSDevice) newConnection(port uint16) (conn net.Conn, err error) {
+	if d.simulator {
+		// Simulators run on this host, so the runner listens on loopback and
+		// there is no usbmuxd hop.
+		return net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 3*time.Second)
+	}
+
 	deviceConn, err := ios.NewDeviceConnection(ios.GetUsbmuxdSocket())
 	if err != nil {
 		return nil, err

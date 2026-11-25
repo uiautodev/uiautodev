@@ -13,8 +13,12 @@ import (
 
 var iosBundleIDPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 
-// ListApps lists installed app bundle IDs via the go-ios CLI.
+// ListApps lists installed app bundle IDs. Real devices use the go-ios CLI;
+// simulators use `simctl listapps`.
 func (d *IOSDevice) ListApps(scope AppScope) ([]string, error) {
+	if d.simulator {
+		return d.listSimulatorApps(scope)
+	}
 	iosBin, err := IOSPath()
 	if err != nil {
 		return nil, err
@@ -56,7 +60,7 @@ func parseIOSAppList(output string) []string {
 	return apps
 }
 
-// StartApp launches an iOS app through WDA.
+// StartApp launches an iOS app through WDA or the simulator runner.
 func (d *IOSDevice) StartApp(appID, _ string) (CurrentApp, error) {
 	appID = strings.TrimSpace(appID)
 	if !iosBundleIDPattern.MatchString(appID) {
@@ -65,13 +69,19 @@ func (d *IOSDevice) StartApp(appID, _ string) (CurrentApp, error) {
 	if err := d.EnsureWDA(); err != nil {
 		return CurrentApp{}, err
 	}
+	if d.simulator {
+		if err := d.devicekit.LaunchApp(appID); err != nil {
+			return CurrentApp{}, err
+		}
+		return CurrentApp{AppID: appID}, nil
+	}
 	if err := d.wdaClient.LaunchApp(appID); err != nil {
 		return CurrentApp{}, err
 	}
 	return CurrentApp{AppID: appID}, nil
 }
 
-// StopApp terminates an iOS app through WDA.
+// StopApp terminates an iOS app through WDA or the simulator runner.
 func (d *IOSDevice) StopApp(appID string) error {
 	appID = strings.TrimSpace(appID)
 	if !iosBundleIDPattern.MatchString(appID) {
@@ -80,15 +90,24 @@ func (d *IOSDevice) StopApp(appID string) error {
 	if err := d.EnsureWDA(); err != nil {
 		return err
 	}
+	if d.simulator {
+		return d.devicekit.TerminateApp(appID)
+	}
 	return d.wdaClient.TerminateApp(appID)
 }
 
-// CurrentApp returns the foreground iOS app through WDA.
+// CurrentApp returns the foreground iOS app through WDA or the simulator runner.
 func (d *IOSDevice) CurrentApp() (CurrentApp, error) {
 	if err := d.EnsureWDA(); err != nil {
 		return CurrentApp{}, err
 	}
-	info, err := d.wdaClient.ActiveAppInfo()
+	var info WDAAppInfo
+	var err error
+	if d.simulator {
+		info, err = d.devicekit.ForegroundApp()
+	} else {
+		info, err = d.wdaClient.ActiveAppInfo()
+	}
 	if err != nil {
 		return CurrentApp{}, err
 	}

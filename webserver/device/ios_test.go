@@ -76,7 +76,15 @@ func getTestIOSDevice(t *testing.T) *IOSDevice {
 		return nil
 	}
 
+	// Prefer a physical device: a simulator needs the devicekit runner and its
+	// first-use download, which would slow down the general test suite.
 	udid := serials[0]
+	for _, serial := range serials {
+		if !isSimulatorUDID(serial) {
+			udid = serial
+			break
+		}
+	}
 	t.Logf("Using device: %s", udid)
 	return NewIOSDevice(udid)
 }
@@ -99,6 +107,11 @@ func TestIOSScreenshot(t *testing.T) {
 	device := getTestIOSDevice(t)
 	if device == nil {
 		return
+	}
+	if device.simulator {
+		if err := device.EnsureWDA(); err != nil {
+			t.Skipf("devicekit runner unavailable: %v", err)
+		}
 	}
 
 	img, err := device.Screenshot()

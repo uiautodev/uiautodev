@@ -172,6 +172,9 @@ func cancelOnWebsocketClose(parent context.Context, conn *websocket.Conn) (conte
 }
 
 func mjpegiOSHandler(c echo.Context, idInfo *DeviceIDInfo) error {
+	if isSimulatorUDID(idInfo.Serial) {
+		return simulatorMJPEGHandler(c, idInfo.Serial)
+	}
 	port, err := utils.GetFreePort()
 	if err != nil {
 		return errors.Wrap(err, "failed to get free port")
@@ -211,5 +214,27 @@ func mjpegiOSHandler(c echo.Context, idInfo *DeviceIDInfo) error {
 
 	// Copy the stream to the client
 	_, err = io.Copy(c.Response(), proxyResp.Body)
+	return err
+}
+
+// simulatorMJPEGHandler proxies the devicekit MJPEG stream of a booted
+// simulator, which serves the JSON-RPC API and the stream on one port.
+func simulatorMJPEGHandler(c echo.Context, udid string) error {
+	device := NewIOSDevice(udid)
+	if err := device.EnsureWDA(); err != nil {
+		return errors.Wrap(err, "ensure simulator runner")
+	}
+	resp, err := device.devicekit.openStream(c.Request().Context(), "/mjpeg")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	c.Response().Header().Set("Content-Type", "multipart/x-mixed-replace; boundary=--BoundaryString")
+	c.Response().Header().Set("Cache-Control", "no-cache")
+	c.Response().Header().Set("Connection", "keep-alive")
+	c.Response().WriteHeader(http.StatusOK)
+
+	_, err = io.Copy(c.Response(), resp.Body)
 	return err
 }

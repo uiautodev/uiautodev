@@ -116,29 +116,31 @@
       <div class="hidden items-center gap-1 sm:flex">
         <UpdateButton />
         <LanguageSwitcher />
-        <Tooltip.Root>
-          <Tooltip.Trigger>
-            {#snippet child({ props })}
-              <Button
-                {...props}
-                onclick={toggleLayout}
-                variant="ghost"
-                size="icon"
-                aria-label={$t("device.layout.toggle")}>
-                {#if isHorizontal}
-                  <Rows2 />
-                {:else}
-                  <Columns2 />
-                {/if}
-              </Button>
-            {/snippet}
-          </Tooltip.Trigger>
-          <Tooltip.Content side="bottom">
-            <p>
-              {isHorizontal ? $t("device.layout.toVertical") : $t("device.layout.toHorizontal")}
-            </p>
-          </Tooltip.Content>
-        </Tooltip.Root>
+      </div>
+      <Tooltip.Root>
+        <Tooltip.Trigger>
+          {#snippet child({ props })}
+            <Button
+              {...props}
+              onclick={toggleLayout}
+              variant="ghost"
+              size="icon"
+              aria-label={$t("device.layout.toggle")}>
+              {#if isHorizontal}
+                <Rows2 />
+              {:else}
+                <Columns2 />
+              {/if}
+            </Button>
+          {/snippet}
+        </Tooltip.Trigger>
+        <Tooltip.Content side="bottom">
+          <p>
+            {isHorizontal ? $t("device.layout.toVertical") : $t("device.layout.toHorizontal")}
+          </p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <div class="hidden items-center gap-1 sm:flex">
         <ThemeToggle />
       </div>
     </div>

@@ -55,7 +55,7 @@
 
 <div class="flex shrink-0 items-center gap-2 min-w-0">
   {#if occupancy}
-    {#if !showStack && state !== "mine"}
+    {#if !showStack || state === "mine" || state === "busy" || state === "preempted"}
       <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-sm {tone}">
         <span class="size-2 rounded-full {dotClass}"></span>
         {$t(`presence.state.${state}`)}

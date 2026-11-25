@@ -42,7 +42,7 @@
           type="button"
           class="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-muted transition-colors"
           title={displayName}>
-          <UserAvatar id={me.id} name={me.name} avatarUrl={me.avatar_url} size={26} />
+          <UserAvatar id={me.id} name={me.name} avatarUrl={me.avatar_url} size={compact ? 22 : 26} />
           {#if !compact}
             <span class="hidden sm:inline max-w-32 truncate text-sm text-foreground">{displayName}</span>
           {/if}

@@ -1,19 +1,21 @@
 <script lang="ts">
+  import * as Avatar from "$lib/components/ui/avatar/index.js";
+
   let {
     id = "",
     name = "",
     avatarUrl = "",
     size = 24,
+    badge = false,
     class: className = "",
   }: {
     id?: string;
     name?: string;
     avatarUrl?: string;
     size?: number;
+    badge?: boolean;
     class?: string;
   } = $props();
-
-  let imageFailed = $state(false);
 
   // FNV-1a keeps the identicon deterministic for the same identity id.
   function hashSeed(value: string): number {
@@ -45,23 +47,23 @@
   const label = $derived(name || id);
 </script>
 
-<span
-  class="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full {className}"
+<Avatar.Root
+  class={className}
   style={`width:${size}px;height:${size}px`}
   title={label}
-  aria-label={label}>
-  {#if avatarUrl && !imageFailed}
-    <img
-      src={avatarUrl}
-      alt={label}
-      class="h-full w-full object-cover"
-      referrerpolicy="no-referrer"
-      onerror={() => (imageFailed = true)} />
-  {:else}
-    <svg viewBox="0 0 5 5" class="h-full w-full" style={`background:${identicon.bg}`} role="img" aria-label={label}>
+  aria-label={label}
+  data-size="sm">
+  {#if avatarUrl}
+    <Avatar.Image src={avatarUrl} alt={label} referrerpolicy="no-referrer" />
+  {/if}
+  <Avatar.Fallback class="overflow-hidden">
+    <svg viewBox="0 0 5 5" class="size-full" style={`background:${identicon.bg}`} aria-hidden="true">
       {#each identicon.cells as cell}
         <rect x={cell.x} y={cell.y} width="1" height="1" fill={identicon.fg} shape-rendering="crispEdges" />
       {/each}
     </svg>
+  </Avatar.Fallback>
+  {#if badge}
+    <Avatar.Badge class="bg-emerald-500" />
   {/if}
-</span>
+</Avatar.Root>

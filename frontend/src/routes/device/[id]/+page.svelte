@@ -65,52 +65,58 @@
 </script>
 
 <div class="flex flex-col justify-center h-full">
-  <header class="shrink-0 flex items-center">
-    <NavigationMenu.Root viewport={false}>
-      <NavigationMenu.List>
-        <NavigationMenu.Item>
+  <header class="shrink-0 flex items-center gap-2">
+    <NavigationMenu.Root viewport={false} class="min-w-0 justify-start [&>div]:min-w-0">
+      <NavigationMenu.List class="min-w-0 justify-start">
+        <NavigationMenu.Item class="shrink-0">
           <NavigationMenu.Link>
             <Button onclick={goBack} variant="secondary" size="icon" aria-label={$t("device.back")}>
               <ArrowLeft />
             </Button>
           </NavigationMenu.Link>
         </NavigationMenu.Item>
-        <NavigationMenu.Item>
-          <div class="flex min-w-0 items-center gap-2">
+        <NavigationMenu.Item class="min-w-0">
+          <div class="flex min-w-0 items-center gap-2 overflow-hidden">
             {#if device?.platform === "android"}
-              <span class="whitespace-nowrap"
+              <span class="truncate max-sm:hidden"
                 >{$t("device.platform.android")}:{device?.props.model}
                 {$t("home.table.product")}:{device?.props.product}</span>
             {:else if device?.platform === "ios"}
-              <span class="whitespace-nowrap">{$t("device.platform.ios")}</span>
+              <span class="truncate max-sm:hidden">{$t("device.platform.ios")}</span>
             {:else if device?.platform === "harmony"}
-              <span class="whitespace-nowrap"
+              <span class="truncate max-sm:hidden"
                 >{$t("device.platform.harmony")}:{device?.props.model}
                 {$t("home.table.product")}:{device?.props.product}</span>
             {:else if device?.platform === "demo"}
-              <span class="whitespace-nowrap"
+              <span class="truncate max-sm:hidden"
                 >{$t("device.platform.demo")}:{device?.props.model}
                 {$t("home.table.product")}:{device?.props.product}</span>
             {/if}
-            <span class="flex items-center whitespace-nowrap">
+            <span class="flex shrink-0 items-center whitespace-nowrap">
               {device?.props.serial}
-              <CopyButton text={device?.props.serial ?? ""} />
+              <CopyButton class="shrink-0" text={device?.props.serial ?? ""} />
             </span>
-            <DeviceRemark {deviceId} meta={device?.meta} onsaved={handleMetaSaved} />
+            <div class="shrink-0 max-sm:hidden">
+              <DeviceRemark {deviceId} meta={device?.meta} onsaved={handleMetaSaved} />
+            </div>
             {#if presence}
               <PresenceBadge occupancy={presence} {mineId} />
             {/if}
             {#if device?.platform === "ios"}
-              <DeviceIosSettings {deviceId} meta={device?.meta} onsaved={handleMetaSaved} />
+              <div class="shrink-0">
+                <DeviceIosSettings {deviceId} meta={device?.meta} onsaved={handleMetaSaved} />
+              </div>
             {/if}
           </div>
         </NavigationMenu.Item>
       </NavigationMenu.List>
     </NavigationMenu.Root>
-    <div class="ml-auto pr-2 flex items-center gap-1">
+    <div class="ml-auto pr-2 flex shrink-0 items-center gap-1">
       <UserMenu compact />
-      <UpdateButton />
-      <LanguageSwitcher />
+      <div class="hidden items-center gap-1 sm:flex">
+        <UpdateButton />
+        <LanguageSwitcher />
+      </div>
       <Tooltip.Root>
         <Tooltip.Trigger>
           {#snippet child({ props })}
@@ -134,7 +140,9 @@
           </p>
         </Tooltip.Content>
       </Tooltip.Root>
-      <ThemeToggle />
+      <div class="hidden items-center gap-1 sm:flex">
+        <ThemeToggle />
+      </div>
     </div>
   </header>
   <DeviceGuard {deviceId} {initialMode} onstate={(next) => (presence = next)}>

@@ -83,7 +83,7 @@ func awaitValue[T any](t *testing.T, ch <-chan T, message string) T {
 	return zero
 }
 
-func TestTerminalHandlerRejectsNonAndroid(t *testing.T) {
+func TestTerminalHandlerRejectsUnsupportedPlatform(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/stream/devices/i-phone/terminal", nil)
 	rec := httptest.NewRecorder()
@@ -96,6 +96,36 @@ func TestTerminalHandlerRejectsNonAndroid(t *testing.T) {
 	var httpErr *echo.HTTPError
 	require.ErrorAs(t, err, &httpErr)
 	require.Equal(t, http.StatusBadRequest, httpErr.Code)
+}
+
+func TestTerminalWebSocketSupportsHarmony(t *testing.T) {
+	session := newFakeTerminalSession()
+
+	previousOpener := terminalSessionOpener
+	terminalSessionOpener = func(deviceID string, rows, cols uint16) (TerminalSession, error) {
+		require.Equal(t, "h-serial", deviceID)
+		return session, nil
+	}
+	defer func() {
+		terminalSessionOpener = previousOpener
+		select {
+		case session.exitCh <- 0:
+		default:
+		}
+	}()
+
+	e := echo.New()
+	e.GET("/stream/devices/:device_id/terminal", WSTerminalHandler)
+	server := httptest.NewServer(e)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/stream/devices/h-serial/terminal"
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	require.NoError(t, err)
+	require.NoError(t, conn.Close())
 }
 
 func TestTerminalWebSocketBridgesFrames(t *testing.T) {

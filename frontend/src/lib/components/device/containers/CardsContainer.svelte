@@ -19,9 +19,10 @@
 
   let { deviceId, platform, remote = false, ...restProps } = $props();
 
-  // The interactive terminal relies on adb shell v2, which only local Android
-  // devices speak; remote cluster devices would need a tunnel.
-  const terminalEnabled = $derived(platform === "android" && !remote);
+  // The interactive terminal is implemented for local Android (adb shell v2)
+  // and local HarmonyOS (hdc shell); remote cluster devices would need a
+  // tunnel.
+  const terminalEnabled = $derived((platform === "android" || platform === "harmony") && !remote);
 
   // define cards here so page doesn't need to manage them
   const cards = [CurrentApp, Clipboard];

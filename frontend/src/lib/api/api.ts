@@ -112,7 +112,7 @@ export interface TerminalMessage {
   message?: string;
 }
 
-/** WebSocket URL of the interactive terminal session for a local Android device. */
+/** WebSocket URL of the interactive terminal session for a local device. */
 export function getTerminalURL(deviceId: string, rows: number, cols: number): string {
   const params = new URLSearchParams({ rows: String(rows), cols: String(cols) });
   return `${baseWSURL}/stream/devices/${encodeURIComponent(deviceId)}/terminal?${params.toString()}`;

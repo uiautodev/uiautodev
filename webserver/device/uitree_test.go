@@ -85,6 +85,118 @@ func TestParseUIXMLWithClassTags(t *testing.T) {
 	}
 }
 
+// Sample multi-window dump produced by `uiautomator dump --windows`. Display 1
+// comes first so the parser has to select display 0 instead of the first one.
+const sampleMultiWindowXML = `<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<displays rotation="0">
+  <display id="1" width="1280" height="720">
+    <window title="Other display" type="application" layer="3">
+      <hierarchy rotation="0" width="1280" height="720">
+        <node index="0" text="" resource-id="" class="android.widget.FrameLayout" package="com.other" bounds="[0,0][1280,720]"/>
+      </hierarchy>
+    </window>
+  </display>
+  <display id="0" width="1920" height="1080">
+    <window title="StatusBar" type="system" layer="1">
+      <hierarchy rotation="0" width="1920" height="1080">
+        <node index="0" text="" resource-id="" class="android.widget.FrameLayout" package="com.android.systemui" bounds="[0,0][1920,80]"/>
+      </hierarchy>
+    </window>
+    <window title="App B" type="application" layer="2">
+      <hierarchy rotation="0" width="1920" height="1080">
+        <node index="0" text="" resource-id="" class="android.widget.FrameLayout" package="com.b" bounds="[0,80][960,1080]">
+          <node index="0" text="B text" resource-id="com.b:id/title" class="android.widget.TextView" package="com.b" bounds="[10,100][200,150]"/>
+        </node>
+      </hierarchy>
+    </window>
+  </display>
+</displays>`
+
+func TestParseUIXMLMultiWindow(t *testing.T) {
+	root, err := ParseUIXML(sampleMultiWindowXML)
+	if err != nil {
+		t.Fatalf("ParseUIXML failed: %v", err)
+	}
+	if root.TagName != "hierarchy" {
+		t.Fatalf("unexpected root name: %s", root.TagName)
+	}
+	if root.Rect.Width != 1920 || root.Rect.Height != 1080 {
+		t.Fatalf("expected main display size 1920x1080, got %dx%d", root.Rect.Width, root.Rect.Height)
+	}
+	// Both windows of display 0 are merged under the root, in document order.
+	if len(root.Children) != 2 {
+		t.Fatalf("expected 2 merged window roots, got %d", len(root.Children))
+	}
+	if got := root.Children[0].Props["package"]; got != "com.android.systemui" {
+		t.Fatalf("unexpected first window package: %q", got)
+	}
+	if got := root.Children[1].Props["package"]; got != "com.b" {
+		t.Fatalf("unexpected second window package: %q", got)
+	}
+	// Nodes from other displays are left out.
+	var packages []string
+	var walk func(Node)
+	walk = func(n Node) {
+		if pkg, ok := n.Props["package"]; ok {
+			packages = append(packages, pkg)
+		}
+		for _, c := range n.Children {
+			walk(c)
+		}
+	}
+	walk(*root)
+	for _, pkg := range packages {
+		if pkg == "com.other" {
+			t.Fatalf("display 1 leaked into the tree: %v", packages)
+		}
+	}
+
+	// XPath queries reach a window that is not the focused one.
+	matched, err := FindNodesByXPathInTree(root, "//*[@resource-id='com.b:id/title']")
+	if err != nil {
+		t.Fatalf("FindNodesByXPathInTree failed: %v", err)
+	}
+	if len(matched) != 1 {
+		t.Fatalf("expected 1 matched node, got %d", len(matched))
+	}
+	if matched[0].Props["text"] != "B text" {
+		t.Fatalf("unexpected matched node: %#v", matched[0].Props)
+	}
+}
+
+func TestParseUIXMLMultiWindowWithoutDisplayIDs(t *testing.T) {
+	const multiWindowNoIDs = `<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<displays rotation="0">
+  <display>
+    <window title="First">
+      <hierarchy width="800" height="600">
+        <node index="0" class="android.widget.FrameLayout" package="com.first" bounds="[0,0][800,600]"/>
+      </hierarchy>
+    </window>
+  </display>
+  <display>
+    <window title="Second">
+      <hierarchy width="800" height="600">
+        <node index="0" class="android.widget.FrameLayout" package="com.second" bounds="[0,0][800,600]"/>
+      </hierarchy>
+    </window>
+  </display>
+</displays>`
+
+	root, err := ParseUIXML(multiWindowNoIDs)
+	if err != nil {
+		t.Fatalf("ParseUIXML failed: %v", err)
+	}
+	// Without display ids the first display is used, and the size falls back
+	// to the nested hierarchy attributes.
+	if root.Rect.Width != 800 || root.Rect.Height != 600 {
+		t.Fatalf("expected 800x600 from hierarchy, got %dx%d", root.Rect.Width, root.Rect.Height)
+	}
+	if len(root.Children) != 1 || root.Children[0].Props["package"] != "com.first" {
+		t.Fatalf("expected only the first display, got %#v", root.Children)
+	}
+}
+
 func TestNodeToXML(t *testing.T) {
 	// Parse sample XML
 	root, err := ParseUIXML(sampleXML)

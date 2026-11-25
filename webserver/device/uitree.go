@@ -48,6 +48,12 @@ func (node Node) ToXML() (string, error) {
 }
 
 // ParseUIXML parses a uiautomator window_dump XML and returns the root Node.
+//
+// It accepts both the single-window <hierarchy> dump and the multi-window
+// <displays> dump produced by `uiautomator dump --windows` (Android 12+). For
+// the latter, the windows of the main display (id 0, or the first display when
+// ids are missing) are merged under one <hierarchy> root in document order, so
+// existing XPath queries keep working unchanged.
 func ParseUIXML(xmlContent string) (*Node, error) {
 	// Define XML structures matching uiautomator output
 	type xmlNode struct {
@@ -63,10 +69,70 @@ func ParseUIXML(xmlContent string) (*Node, error) {
 		Height  int       `xml:"height,attr"`
 		Nodes   []xmlNode `xml:",any"`
 	}
+	type window struct {
+		XMLName     xml.Name    `xml:"window"`
+		Hierarchies []hierarchy `xml:"hierarchy"`
+	}
+	type display struct {
+		XMLName xml.Name `xml:"display"`
+		ID      string   `xml:"id,attr"`
+		Width   int      `xml:"width,attr"`
+		Height  int      `xml:"height,attr"`
+		Windows []window `xml:"window"`
+	}
 
-	var h hierarchy
-	if err := xml.Unmarshal([]byte(xmlContent), &h); err != nil {
+	var probe struct {
+		XMLName xml.Name
+	}
+	if err := xml.Unmarshal([]byte(xmlContent), &probe); err != nil {
 		return nil, errors.Wrap(err, "failed to parse uiautomator xml")
+	}
+
+	var hierarchies []hierarchy
+	width, height := 0, 0
+	switch probe.XMLName.Local {
+	case "displays":
+		var displays struct {
+			Items []display `xml:"display"`
+		}
+		if err := xml.Unmarshal([]byte(xmlContent), &displays); err != nil {
+			return nil, errors.Wrap(err, "failed to parse uiautomator xml")
+		}
+		// The API has no display selector yet, so display 0 is preferred;
+		// dumps without id attributes (and unexpected id sets) fall back to
+		// the first display.
+		mainIndex := -1
+		for i := range displays.Items {
+			if displays.Items[i].ID == "0" {
+				mainIndex = i
+				break
+			}
+		}
+		if mainIndex == -1 && len(displays.Items) > 0 {
+			mainIndex = 0
+		}
+		if mainIndex >= 0 {
+			main := displays.Items[mainIndex]
+			width, height = main.Width, main.Height
+			for _, w := range main.Windows {
+				for _, h := range w.Hierarchies {
+					if width == 0 {
+						width = h.Width
+					}
+					if height == 0 {
+						height = h.Height
+					}
+					hierarchies = append(hierarchies, h)
+				}
+			}
+		}
+	default:
+		var h hierarchy
+		if err := xml.Unmarshal([]byte(xmlContent), &h); err != nil {
+			return nil, errors.Wrap(err, "failed to parse uiautomator xml")
+		}
+		width, height = h.Width, h.Height
+		hierarchies = append(hierarchies, h)
 	}
 
 	idCounter := 0
@@ -132,11 +198,13 @@ func ParseUIXML(xmlContent string) (*Node, error) {
 
 	root := &Node{ID: makeID(),
 		TagName:  defaultRootTagName,
-		Rect:     Rect{X: 0, Y: 0, Width: h.Width, Height: h.Height},
+		Rect:     Rect{X: 0, Y: 0, Width: width, Height: height},
 		Props:    map[string]string{},
 		Children: []Node{}}
-	for _, xn := range h.Nodes {
-		root.Children = append(root.Children, convert(xn))
+	for _, h := range hierarchies {
+		for _, xn := range h.Nodes {
+			root.Children = append(root.Children, convert(xn))
+		}
 	}
 
 	return root, nil

@@ -64,7 +64,9 @@ func deviceScreensHandler(c echo.Context) error {
 
 // deviceUITreeHandler handles GET /api/v1/devices/:device_id/uitree
 // Returns the UI hierarchy (main screen). The optional `backend` query
-// parameter selects the dump method on Android: yadb (default) or uiautomator.
+// parameter selects the dump method on Android: yadb (fast, focused window) or
+// uiautomator (all windows on Android 12+). Omitted, the server prefers the
+// multi-window dump.
 func deviceUITreeHandler(c echo.Context) error {
 	deviceId := c.Param("device_id")
 	dev, err := device.NewDevice(deviceId)

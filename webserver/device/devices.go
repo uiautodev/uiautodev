@@ -176,9 +176,10 @@ const clipboardTimeoutMs = 30000
 type UITreeBackend string
 
 const (
-	// UITreeBackendYadb uses yadb's fast layout dump (default).
+	// UITreeBackendYadb uses yadb's fast layout dump (focused window only).
 	UITreeBackendYadb UITreeBackend = "yadb"
-	// UITreeBackendUiautomator uses `uiautomator dump` over adb.
+	// UITreeBackendUiautomator uses `uiautomator dump` over adb, with
+	// --windows on Android 12+ so every window on the main display is dumped.
 	UITreeBackendUiautomator UITreeBackend = "uiautomator"
 )
 

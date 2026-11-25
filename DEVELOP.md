@@ -132,6 +132,16 @@ export APPLE_ID=you@example.com APPLE_APP_PASSWORD=xxx APPLE_TEAM_ID=TEAMID
 xattr -dr com.apple.quarantine "/Applications/Uiautodev Desktop.app"
 ```
 
+## Android UI 树抓取
+
+`GET /api/v1/devices/:id/uitree` 的 `backend` 参数：
+
+- 省略：先 `uiautomator dump --windows`（Android 12+，主屏所有窗口），失败后依次回退 yadb、单窗口 dump、uiautomator2。
+- `uiautomator`：同样优先 `--windows`，Android 11 及以下回退普通 dump。
+- `yadb`：只走 yadb 的快速单窗口布局 dump（失败再回退 uiautomator）。
+
+`--windows` 的 `displays/display/window/hierarchy` 结构由 `ParseUIXML` 解析：按 display 0 过滤，并把各窗口节点按文档顺序合并到同一个 `<hierarchy>` 根，已有 XPath 不用改。
+
 ## LINKS
 
 - https://tangoadb.dev/scrcpy/

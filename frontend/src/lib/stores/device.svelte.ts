@@ -3,8 +3,9 @@ import type { UINode, APIDevice } from "$lib/api/schemas";
 import { getDeviceInfo, getUiTree, queryXPath, getScreenshot, type DumpBackend } from "$lib/api/api";
 import { useLocalStorage } from "$lib/utils/localstorage.svelte";
 
-// Android UI hierarchy dump method, persisted across sessions. Defaults to yadb.
-export const dumpBackendStore = useLocalStorage<DumpBackend>("device-dump-backend", "yadb");
+// Android UI hierarchy dump method, persisted across sessions. Defaults to the
+// uiautomator dump so all windows on the main display are visible.
+export const dumpBackendStore = useLocalStorage<DumpBackend>("device-dump-backend", "uiautomator");
 
 export const deviceStore = $state({
   node: null as UINode | null,

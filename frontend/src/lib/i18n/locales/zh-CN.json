@@ -330,7 +330,7 @@
       "selectNode": "请选择一个节点",
       "dumpBackend": "抓取方式",
       "dumpBackendYadb": "yadb（快速）",
-      "dumpBackendUiautomator": "adb",
+      "dumpBackendUiautomator": "adb（全部窗口）",
       "xpathHint": "支持 XPath，可编辑后回车查询"
     },
     "layout": {

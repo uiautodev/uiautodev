@@ -48,7 +48,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Generated version.go: Version=%s, GitCommit=%s, BuildTime=%s\n", version, gitCommit, buildTime)
+	// Keep the success line free of a ".go:" prefix: setup-go registers a Go
+	// problem matcher for "*.go: message" output and would turn it into an
+	// error annotation.
+	fmt.Printf("Generated version.go (Version=%s, GitCommit=%s, BuildTime=%s)\n", version, gitCommit, buildTime)
 }
 
 func getGitCommit() string {

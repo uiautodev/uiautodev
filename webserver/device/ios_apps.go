@@ -1,6 +1,7 @@
 package device
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -96,6 +97,36 @@ func (d *IOSDevice) CurrentApp() (CurrentApp, error) {
 		return CurrentApp{}, fmt.Errorf("WDA did not report an active app")
 	}
 	return CurrentApp{AppID: info.BundleID}, nil
+}
+
+// installIOSPackage runs the go-ios helper. The helper is large and downloaded
+// lazily, so it is a variable that tests replace instead of touching the
+// network.
+var installIOSPackage = func(udid, ipaPath string) error {
+	iosBin, err := IOSPath()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), appInstallTimeout)
+	defer cancel()
+	output, err := NewCommandContext(ctx, iosBin, "install", "--path="+ipaPath, "--udid="+udid).CombinedOutput()
+	if err != nil {
+		return errors.Wrapf(err, "install iOS app: %s", strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+// InstallApp installs an IPA through the go-ios helper.
+func (d *IOSDevice) InstallApp(localPath string) error {
+	if err := validatePackageExtension(localPath, IOSPackageExtension); err != nil {
+		return err
+	}
+	return installIOSPackage(d.udid, localPath)
+}
+
+// PackageExtension returns the installable iOS package extension.
+func (d *IOSDevice) PackageExtension() string {
+	return IOSPackageExtension
 }
 
 // WDAAppInfo is the active app payload returned by WDA.

@@ -126,3 +126,33 @@ func TestWDAActiveAppInfoFallsBackToSession(t *testing.T) {
 		t.Fatalf("sessionUsed=%v info=%+v", sessionUsed, info)
 	}
 }
+
+func TestIOSInstallApp(t *testing.T) {
+	original := installIOSPackage
+	t.Cleanup(func() { installIOSPackage = original })
+
+	var gotUDID, gotPath string
+	installIOSPackage = func(udid, ipaPath string) error {
+		gotUDID = udid
+		gotPath = ipaPath
+		return nil
+	}
+
+	d := &IOSDevice{udid: "test-udid"}
+	if err := d.InstallApp("/tmp/game.ipa"); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	if gotUDID != "test-udid" || gotPath != "/tmp/game.ipa" {
+		t.Fatalf("installer got udid=%q path=%q", gotUDID, gotPath)
+	}
+	if ext := d.PackageExtension(); ext != IOSPackageExtension {
+		t.Fatalf("package extension %q", ext)
+	}
+}
+
+func TestIOSInstallAppRejectsOtherPackages(t *testing.T) {
+	d := &IOSDevice{udid: "test-udid"}
+	if err := d.InstallApp("/tmp/game.hap"); err == nil {
+		t.Fatal("expected an extension error")
+	}
+}

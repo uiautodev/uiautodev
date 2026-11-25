@@ -1,11 +1,14 @@
 package device
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/uiautodev/go-hdckit/hdc"
 )
 
 var (
@@ -154,6 +157,31 @@ func (d *HarmonyOSDevice) StopApp(appID string) error {
 		return fmt.Errorf("failed to stop %s: %s", appID, failure)
 	}
 	return nil
+}
+
+// installHarmonyPackage is a variable so tests can observe the package path
+// without a device.
+var installHarmonyPackage = func(target *hdc.Target, hapPath string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), appInstallTimeout)
+	defer cancel()
+	return target.Install(ctx, hapPath)
+}
+
+// InstallApp installs a HAP through hdckit.
+func (d *HarmonyOSDevice) InstallApp(localPath string) error {
+	if err := validatePackageExtension(localPath, HarmonyPackageExtension); err != nil {
+		return err
+	}
+	target, err := d.target()
+	if err != nil {
+		return err
+	}
+	return installHarmonyPackage(target, localPath)
+}
+
+// PackageExtension returns the installable HarmonyOS package extension.
+func (d *HarmonyOSDevice) PackageExtension() string {
+	return HarmonyPackageExtension
 }
 
 // harmonyCommandFailure returns the trimmed output when an `aa` command

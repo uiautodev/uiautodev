@@ -1,5 +1,6 @@
 import axios from "axios";
 import { isWailsEnv } from "$lib/wails-env";
+import { appPackageExtension } from "./schemas";
 import type {
   APIDevice,
   UINode,
@@ -248,6 +249,12 @@ export async function startDeviceApp(deviceId: string, appId: string, activity?:
 
 export async function stopDeviceApp(deviceId: string, appId: string): Promise<void> {
   await api.post(`${deviceAppPath(deviceId, appId)}/stop`);
+}
+
+export async function installDeviceApp(deviceId: string, file: File): Promise<void> {
+  const form = new FormData();
+  form.append("file", file);
+  await api.post(`/api/v1/devices/${encodeURIComponent(deviceId)}/apps`, form);
 }
 
 export async function getServerConfig(): Promise<ServerConfig> {

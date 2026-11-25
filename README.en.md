@@ -5,7 +5,7 @@ A desktop app and web server for controlling Android, iOS and HarmonyOS phones f
 Key features:
 
 - View and control Android / iOS / HarmonyOS phone screens from your computer, with multi-device group control
-- UI hierarchy tree, XPath queries, app management and device clipboard
+- UI hierarchy tree, XPath queries, app management with package upload and install, and device clipboard
 - MCP server: let AI and automation clients operate devices directly
 - Plugin extensibility and a web server you can use from any browser
 - Cluster aggregation, multi-user device presence, Chinese/English UI and dark mode

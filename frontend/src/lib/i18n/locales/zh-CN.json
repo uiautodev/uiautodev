@@ -361,6 +361,16 @@
       "copiedImage": "已复制图片到本机",
       "copyImageFailed": "复制图片到本机失败"
     },
+    "appInstall": {
+      "title": "安装应用",
+      "description": "选择 {ext} 安装包并安装到当前设备",
+      "chooseFile": "选择安装包",
+      "install": "安装",
+      "installing": "安装中...",
+      "invalidFile": "请选择 {ext} 格式的安装包",
+      "success": "已安装 {name}",
+      "failed": "安装失败：{error}"
+    },
     "platform": {
       "android": "Android 型号",
       "ios": "iOS",

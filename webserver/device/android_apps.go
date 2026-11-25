@@ -2,9 +2,12 @@ package device
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/codeskyblue/go-adbkit/adb"
 )
 
 var (
@@ -143,6 +146,34 @@ func (d *AndroidDevice) StopApp(appID string) error {
 	}
 	_, err := d.RunShell("am force-stop "+appID, 10000)
 	return err
+}
+
+// installAndroidPackage is a variable so tests can observe the package path
+// without a device.
+var installAndroidPackage = func(device *adb.Device, apkPath string) (bool, error) {
+	return device.Install(apkPath)
+}
+
+// InstallApp installs an APK. adbkit streams the package with abb_exec when the
+// device supports it and falls back to push plus `pm install` otherwise.
+func (d *AndroidDevice) InstallApp(localPath string) error {
+	if err := validatePackageExtension(localPath, AndroidPackageExtension); err != nil {
+		return err
+	}
+	installed, err := installAndroidPackage(d.getAdbkitDevice(), localPath)
+	if err != nil {
+		return err
+	}
+	// adbkit reports a rejected package as (false, nil).
+	if !installed {
+		return fmt.Errorf("adb did not report a successful install of %s", filepath.Base(localPath))
+	}
+	return nil
+}
+
+// PackageExtension returns the installable Android package extension.
+func (d *AndroidDevice) PackageExtension() string {
+	return AndroidPackageExtension
 }
 
 // CurrentApp returns the foreground app and activity.

@@ -380,6 +380,8 @@ type evictionRecord struct {
 | `stream/.../scrcpy`、`mjpeg`、`frames` | ✅ 只出画面，注入的输入事件被丢弃 | ✅ |
 | `actions/tap`、`swipe`、`press_key`、`input_text`、`clear_text` | ❌ 403 `read_only` | ✅ |
 | `POST /shell` | ❌ 403 | ✅ |
+| `GET /apps`、`GET /apps/current` | ✅ | ✅ |
+| `apps/:id/start`、`apps/:id/stop`、`POST /apps`（上传安装） | ❌ 403 `read_only` | ✅ |
 | `GET /connect` | ❌ 403 | ✅ |
 | `/proxy/devices/:id/*` | ❌ 403 | ✅ |
 | `DELETE /connect` | ❌ 403 | ✅ |

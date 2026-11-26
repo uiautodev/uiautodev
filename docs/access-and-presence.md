@@ -101,7 +101,7 @@
 |---|---|---|
 | 设备信息、`/meta`、截图、screens、uitree、window/size、encoders、apps 列表、clipboard GET | ✅ | ✅ |
 | `stream/.../scrcpy`、`mjpeg`、`frames` | ✅ 只出画面，注入的输入事件被服务端丢弃 | ✅ |
-| `actions/*`、`shell`、`GET/DELETE connect`、clipboard PUT、apps start/stop | ❌ 403 `read_only` | ✅ |
+| `actions/*`、`shell`、`GET/DELETE connect`、clipboard PUT、apps start/stop、`POST apps`（上传安装包） | ❌ 403 `read_only` | ✅ |
 | `/proxy/devices/:id/*` | ❌ 403 `read_only` | ✅ |
 
 `allow_observers=false` 时，被占用设备的读接口也返回 423。

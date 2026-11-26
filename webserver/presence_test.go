@@ -543,6 +543,7 @@ func TestIsControlRequest(t *testing.T) {
 		{http.MethodPost, "/api/v1/devices/a-1/shell", true},
 		{http.MethodPut, "/api/v1/devices/a-1/clipboard", true},
 		{http.MethodPost, "/api/v1/devices/a-1/apps/com.x/start", true},
+		{http.MethodPost, "/api/v1/devices/a-1/apps", true},
 		{http.MethodGet, "/api/v1/devices/a-1/apps", false},
 		{http.MethodPut, "/api/v1/devices/a-1/meta", false},
 		{http.MethodDelete, "/api/v1/devices/a-1/meta", false},

@@ -208,3 +208,174 @@ func TestAppInstallHandlerUnsupportedDevice(t *testing.T) {
 		t.Fatalf("message %q", response.Message)
 	}
 }
+
+// trackingReader records whether the handler touched the request body at all.
+type trackingReader struct{ reads int }
+
+func (r *trackingReader) Read([]byte) (int, error) {
+	r.reads++
+	return 0, io.EOF
+}
+
+func TestAppInstallHandlerRejectsOversizedContentLengthBeforeReading(t *testing.T) {
+	dir := useAppPackageTempDir(t)
+	originalLimit := maxAppPackageBytes
+	originalSlack := appPackageRequestSlack
+	t.Cleanup(func() {
+		maxAppPackageBytes = originalLimit
+		appPackageRequestSlack = originalSlack
+	})
+	maxAppPackageBytes = 4
+	appPackageRequestSlack = 0
+
+	controller := &fakeAppController{extension: device.AndroidPackageExtension}
+	useFakeAppController(t, controller, nil)
+
+	body := &trackingReader{}
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/test/apps", body)
+	req.ContentLength = 5
+	req.Header.Set(echo.HeaderContentType, "multipart/form-data; boundary=test")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("device_id")
+	c.SetParamValues("test")
+	if err := appInstallHandler(c); err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if body.reads != 0 {
+		t.Fatalf("handler read the oversized body %d times", body.reads)
+	}
+	if controller.installedPath != "" {
+		t.Fatalf("installer should not run, got %q", controller.installedPath)
+	}
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
+		t.Fatalf("temporary directory is not empty: %v %v", entries, err)
+	}
+}
+
+func TestAppInstallHandlerRejectsSecondInstallOnSameDevice(t *testing.T) {
+	useAppPackageTempDir(t)
+	controller := &fakeAppController{extension: device.AndroidPackageExtension}
+	useFakeAppController(t, controller, nil)
+
+	release, err := appInstalls.acquire("test")
+	if err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+	defer release()
+
+	body, contentType := newInstallUpload(t, "game.apk", []byte("apk-bytes"))
+	rec, response := runInstallHandler(t, body, contentType)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if response.Message != errAppInstallBusy.Error() {
+		t.Fatalf("message %q", response.Message)
+	}
+	if controller.installedPath != "" {
+		t.Fatalf("installer should not run, got %q", controller.installedPath)
+	}
+}
+
+func TestAppInstallHandlerRejectsWhenInstallSlotsAreExhausted(t *testing.T) {
+	useAppPackageTempDir(t)
+	originalLimit := maxAppPackageInstalls
+	t.Cleanup(func() { maxAppPackageInstalls = originalLimit })
+	maxAppPackageInstalls = 0
+
+	controller := &fakeAppController{extension: device.AndroidPackageExtension}
+	useFakeAppController(t, controller, nil)
+
+	body, contentType := newInstallUpload(t, "game.apk", []byte("apk-bytes"))
+	rec, _ := runInstallHandler(t, body, contentType)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if controller.installedPath != "" {
+		t.Fatalf("installer should not run, got %q", controller.installedPath)
+	}
+}
+
+func TestAppInstallGateAllowsOneInstallPerDeviceAndReusesSlots(t *testing.T) {
+	gate := newAppInstallGate()
+	releaseFirst, err := gate.acquire("test")
+	if err != nil {
+		t.Fatalf("first acquire: %v", err)
+	}
+	if _, err := gate.acquire("test"); !errors.Is(err, errAppInstallBusy) {
+		t.Fatalf("second acquire on the same device: %v", err)
+	}
+	if _, err := gate.acquire("other"); err != nil {
+		t.Fatalf("another device should get a slot: %v", err)
+	}
+	releaseFirst()
+	releaseAgain, err := gate.acquire("test")
+	if err != nil {
+		t.Fatalf("slot was not released: %v", err)
+	}
+	releaseAgain()
+}
+
+func TestAppInstallHandlerRejectsOversizedFormField(t *testing.T) {
+	useAppPackageTempDir(t)
+	originalLimit := maxAppPackageFormFieldBytes
+	t.Cleanup(func() { maxAppPackageFormFieldBytes = originalLimit })
+	maxAppPackageFormFieldBytes = 4
+
+	controller := &fakeAppController{extension: device.AndroidPackageExtension}
+	useFakeAppController(t, controller, nil)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	if err := writer.WriteField("note", "too long for the form"); err != nil {
+		t.Fatalf("write field: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+	rec, response := runInstallHandler(t, body, writer.FormDataContentType())
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(response.Message, `unexpected form field "note"`) {
+		t.Fatalf("message %q", response.Message)
+	}
+	if controller.installedPath != "" {
+		t.Fatalf("installer should not run, got %q", controller.installedPath)
+	}
+}
+
+func TestWriteAppErrorStatusCodes(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"too large", errAppPackageTooLarge, http.StatusRequestEntityTooLarge},
+		{"install busy", errAppInstallBusy, http.StatusConflict},
+		{"slots exhausted", errAppInstallLimited, http.StatusTooManyRequests},
+		{"unsupported", device.ErrAppManagementUnsupported, http.StatusNotImplemented},
+		{"other", errors.New("boom"), http.StatusBadRequest},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := echo.New()
+			rec := httptest.NewRecorder()
+			c := e.NewContext(httptest.NewRequest(http.MethodPost, "/api/v1/devices/test/apps", nil), rec)
+			if err := writeAppError(c, tc.err); err != nil {
+				t.Fatalf("writeAppError: %v", err)
+			}
+			if rec.Code != tc.want {
+				t.Fatalf("status %d, want %d", rec.Code, tc.want)
+			}
+		})
+	}
+}

@@ -59,7 +59,7 @@ func (m *Master) proxy(c echo.Context, slaveID, localID, globalID string) error 
 	targetPath := strings.Replace(path, "/"+globalID, "/"+localID, 1)
 
 	base, direct := m.slaveBaseURL(slaveID)
-	var transport http.RoundTripper = m.transport(slaveID, kind)
+	transport := m.proxyTransport(slaveID, kind, direct != nil, c.Request().Method, path)
 	var target *url.URL
 	if direct != nil {
 		parsed, err := url.Parse(base)
@@ -67,9 +67,6 @@ func (m *Master) proxy(c echo.Context, slaveID, localID, globalID string) error 
 			return writeAPI(c, http.StatusBadGateway, 502, "invalid slave URL", nil)
 		}
 		target = parsed
-		if client := m.newClient(slaveID, kind); client.Transport != nil {
-			transport = client.Transport
-		}
 	}
 
 	proxy := &httputil.ReverseProxy{

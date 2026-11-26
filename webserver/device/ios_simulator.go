@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,16 +27,27 @@ import (
 // downloaded on first use because the app bundle is too large to ship and is
 // licensed under FSL-1.1 (see the README).
 const (
-	devicekitVersion        = "0.0.38"
-	devicekitRunnerBundleID = "com.mobilenext.devicekit-iosUITests.xctrunner"
-	devicekitRunnerAppName  = "devicekit-iosUITests-Runner.app"
-	devicekitHealthTimeout  = 120 * time.Second
-	simulatorToolTimeout    = 30 * time.Second
-	simulatorInstallTimeout = 2 * time.Minute
+	devicekitVersion         = "0.0.38"
+	devicekitRunnerBundleID  = "com.mobilenext.devicekit-iosUITests.xctrunner"
+	devicekitRunnerAppName   = "devicekit-iosUITests-Runner.app"
+	devicekitHealthTimeout   = 120 * time.Second
+	simulatorToolTimeout     = 30 * time.Second
+	simulatorInstallTimeout  = 2 * time.Minute
+	devicekitDownloadTimeout = 10 * time.Minute
 )
 
 // devicekitDownloadBaseURL is a variable so tests can point at a local server.
 var devicekitDownloadBaseURL = "https://github.com/mobile-next/devicekit-ios/releases/download"
+
+// devicekitMirrors rewrites a GitHub asset URL into an equivalent URL served by
+// a public mirror. Each mirror builds its own address, because they do not all
+// share one URL shape. They are tried in order before GitHub itself, since
+// github.com is often unreachable from mainland China.
+var devicekitMirrors = []func(githubURL string) string{
+	func(u string) string { return "https://gh-proxy.com/" + u },
+	func(u string) string { return "https://ghfast.top/" + u },
+	func(u string) string { return "https://ghproxy.net/" + u },
+}
 
 var simulatorUUIDPattern = regexp.MustCompile(`^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$`)
 
@@ -53,7 +65,7 @@ func isSimulatorUDID(udid string) bool {
 	return simulatorUUIDPattern.MatchString(udid)
 }
 
-// devicekitDownloadURL returns the simulator runner archive for a GOARCH.
+// devicekitDownloadURL returns the simulator runner archive on GitHub for a GOARCH.
 func devicekitDownloadURL(goarch string) (string, error) {
 	var arch string
 	switch goarch {
@@ -65,6 +77,20 @@ func devicekitDownloadURL(goarch string) (string, error) {
 		return "", fmt.Errorf("no devicekit runner for architecture %s", goarch)
 	}
 	return fmt.Sprintf("%s/%s/devicekit-ios-Sim-%s.zip", devicekitDownloadBaseURL, devicekitVersion, arch), nil
+}
+
+// devicekitDownloadURLs returns the candidate download URLs for a GOARCH: the
+// public mirrors first, then the direct GitHub asset as the last resort.
+func devicekitDownloadURLs(goarch string) ([]string, error) {
+	githubURL, err := devicekitDownloadURL(goarch)
+	if err != nil {
+		return nil, err
+	}
+	urls := make([]string, 0, len(devicekitMirrors)+1)
+	for _, mirror := range devicekitMirrors {
+		urls = append(urls, mirror(githubURL))
+	}
+	return append(urls, githubURL), nil
 }
 
 // simctlDeviceList is the subset of `simctl list devices -j` we need.
@@ -277,38 +303,17 @@ func ensureDevicekitRunner() (string, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", fmt.Errorf("create devicekit cache dir: %w", err)
 	}
-	url, err := devicekitDownloadURL(runtime.GOARCH)
+	urls, err := devicekitDownloadURLs(runtime.GOARCH)
 	if err != nil {
 		return "", err
 	}
-	slog.Info("downloading devicekit simulator runner", "url", url, "path", appPath)
-
-	zipFile, err := os.CreateTemp(dir, ".devicekit-*.zip")
+	ctx, cancel := context.WithTimeout(context.Background(), devicekitDownloadTimeout)
+	defer cancel()
+	zipPath, err := downloadDevicekitRunner(ctx, urls, dir)
 	if err != nil {
-		return "", fmt.Errorf("create devicekit download: %w", err)
+		return "", err
 	}
-	zipPath := zipFile.Name()
 	defer os.Remove(zipPath)
-
-	client := &http.Client{Timeout: 10 * time.Minute}
-	resp, err := client.Get(url)
-	if err != nil {
-		zipFile.Close()
-		return "", fmt.Errorf("download devicekit runner: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
-		zipFile.Close()
-		return "", fmt.Errorf("download devicekit runner: %s returned %s", url, resp.Status)
-	}
-	_, copyErr := io.Copy(zipFile, resp.Body)
-	resp.Body.Close()
-	if closeErr := zipFile.Close(); copyErr == nil {
-		copyErr = closeErr
-	}
-	if copyErr != nil {
-		return "", fmt.Errorf("write devicekit runner: %w", copyErr)
-	}
 
 	tmpDir, err := os.MkdirTemp(dir, ".extract-*")
 	if err != nil {
@@ -326,6 +331,86 @@ func ensureDevicekitRunner() (string, error) {
 	}
 	slog.Info("devicekit simulator runner ready", "path", appPath)
 	return appPath, nil
+}
+
+// devicekitDownloadClient fails fast on a dead mirror (connect, TLS or response
+// headers) and leaves the body transfer to the overall download deadline.
+var devicekitDownloadClient = func() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = (&net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}).DialContext
+	transport.TLSHandshakeTimeout = 15 * time.Second
+	transport.ResponseHeaderTimeout = 30 * time.Second
+	return &http.Client{Transport: transport}
+}()
+
+// downloadDevicekitRunner downloads the runner zip from the first candidate URL
+// that serves a valid archive and returns its path inside dir.
+func downloadDevicekitRunner(ctx context.Context, urls []string, dir string) (string, error) {
+	failures := make([]string, 0, len(urls))
+	for _, sourceURL := range urls {
+		slog.Info("downloading devicekit simulator runner", "url", sourceURL)
+		zipPath, err := downloadDevicekitZip(ctx, sourceURL, dir)
+		if err == nil {
+			return zipPath, nil
+		}
+		slog.Warn("devicekit runner download failed, trying next source", "url", sourceURL, "error", err)
+		failures = append(failures, fmt.Sprintf("%s: %v", sourceURL, err))
+	}
+	return "", fmt.Errorf("download devicekit runner: %s", strings.Join(failures, "; "))
+}
+
+// downloadDevicekitZip fetches one URL into a temporary zip file and verifies it
+// contains the runner, so an error page served by a proxy is not accepted.
+func downloadDevicekitZip(ctx context.Context, sourceURL, dir string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := devicekitDownloadClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("returned %s", resp.Status)
+	}
+
+	zipFile, err := os.CreateTemp(dir, ".devicekit-*.zip")
+	if err != nil {
+		return "", fmt.Errorf("create download: %w", err)
+	}
+	zipPath := zipFile.Name()
+	if _, err := io.Copy(zipFile, resp.Body); err != nil {
+		zipFile.Close()
+		os.Remove(zipPath)
+		return "", fmt.Errorf("write download: %w", err)
+	}
+	if err := zipFile.Close(); err != nil {
+		os.Remove(zipPath)
+		return "", fmt.Errorf("write download: %w", err)
+	}
+	if err := checkDevicekitZip(zipPath); err != nil {
+		os.Remove(zipPath)
+		return "", err
+	}
+	return zipPath, nil
+}
+
+// checkDevicekitZip reports whether the archive contains the runner bundle.
+func checkDevicekitZip(zipPath string) error {
+	reader, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return fmt.Errorf("open zip: %w", err)
+	}
+	defer reader.Close()
+
+	want := devicekitRunnerAppName + "/Info.plist"
+	for _, file := range reader.File {
+		if file.Name == want {
+			return nil
+		}
+	}
+	return fmt.Errorf("zip does not contain %s", devicekitRunnerAppName)
 }
 
 // extractDevicekitRunner extracts only the runner app from the release zip,

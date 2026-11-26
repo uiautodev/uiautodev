@@ -264,6 +264,94 @@ func TestDevicekitDownloadURL(t *testing.T) {
 	}
 }
 
+func TestDevicekitDownloadURLsMirrorFirst(t *testing.T) {
+	direct := devicekitDownloadBaseURL + "/" + devicekitVersion + "/devicekit-ios-Sim-arm64.zip"
+	urls, err := devicekitDownloadURLs("arm64")
+	if err != nil {
+		t.Fatalf("arm64: %v", err)
+	}
+	if len(urls) != len(devicekitMirrors)+1 {
+		t.Fatalf("got %d URLs, want %d: %v", len(urls), len(devicekitMirrors)+1, urls)
+	}
+	if urls[0] != "https://gh-proxy.com/"+direct {
+		t.Errorf("first URL = %q, want the gh-proxy.com mirror", urls[0])
+	}
+	if last := urls[len(urls)-1]; last != direct {
+		t.Errorf("last URL = %q, want the direct GitHub asset %q", last, direct)
+	}
+	seen := make(map[string]bool, len(urls))
+	for _, u := range urls {
+		if u == "" || seen[u] {
+			t.Errorf("URLs contain an empty or duplicate entry: %v", urls)
+		}
+		seen[u] = true
+	}
+
+	if _, err := devicekitDownloadURLs("riscv64"); err == nil {
+		t.Error("expected an error for an unsupported architecture")
+	}
+}
+
+func TestDownloadDevicekitRunnerFallsBackToMirror(t *testing.T) {
+	zipPath := filepath.Join(t.TempDir(), "runner.zip")
+	writeTestZip(t, zipPath, map[string]string{
+		devicekitRunnerAppName + "/Info.plist": "plist",
+	})
+	archive, err := os.ReadFile(zipPath)
+	if err != nil {
+		t.Fatalf("read test zip: %v", err)
+	}
+
+	github := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "blocked", http.StatusServiceUnavailable)
+	}))
+	defer github.Close()
+	// A proxy may answer 200 with an HTML page; that must not be accepted.
+	mirrorErrorPage := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("<html>rate limited</html>"))
+	}))
+	defer mirrorErrorPage.Close()
+	mirror := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(archive)
+	}))
+	defer mirror.Close()
+
+	dir := t.TempDir()
+	got, err := downloadDevicekitRunner(t.Context(), []string{github.URL, mirrorErrorPage.URL, mirror.URL}, dir)
+	if err != nil {
+		t.Fatalf("downloadDevicekitRunner() error: %v", err)
+	}
+	if filepath.Dir(got) != dir {
+		t.Errorf("zip path = %q, want a file inside %q", got, dir)
+	}
+	if err := checkDevicekitZip(got); err != nil {
+		t.Errorf("downloaded zip is invalid: %v", err)
+	}
+}
+
+func TestDownloadDevicekitRunnerReportsAllSources(t *testing.T) {
+	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "blocked", http.StatusServiceUnavailable)
+	}))
+	defer failing.Close()
+
+	dir := t.TempDir()
+	_, err := downloadDevicekitRunner(t.Context(), []string{failing.URL, failing.URL}, dir)
+	if err == nil {
+		t.Fatal("expected an error when every source fails")
+	}
+	if !strings.Contains(err.Error(), "503") {
+		t.Errorf("error does not mention the HTTP status: %v", err)
+	}
+	entries, readErr := os.ReadDir(dir)
+	if readErr != nil {
+		t.Fatalf("read dir: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Errorf("failed downloads left files behind: %v", entries)
+	}
+}
+
 func TestParseSimulatorAppList(t *testing.T) {
 	sample := `{
 	  "com.example.user": {"ApplicationType": "User"},

@@ -286,32 +286,54 @@ func (d *AndroidDevice) GetScreens() ([]Screen, error) {
 }
 
 func (d *AndroidDevice) GetUITree() (*Node, error) {
-	return d.GetUITreeWithBackend(UITreeBackendYadb)
+	return d.GetUITreeWithBackend("")
 }
 
 // GetUITreeWithBackend dumps the UI hierarchy using the requested backend.
-// yadb is the default and falls back to uiautomator dump on failure; the
-// uiautomator backend uses `uiautomator dump` directly. Both fall back to
-// uiautomator2 as a last resort.
+//
+// With no backend the multi-window `uiautomator dump --windows` dump is tried
+// first so windows behind the focused one (status bars, docks, split-screen
+// apps) are included, then yadb's fast single-window layout dump, then a plain
+// uiautomator dump. The explicit yadb backend keeps the fast path only. Every
+// path falls back to uiautomator2 as a last resort.
 func (d *AndroidDevice) GetUITreeWithBackend(backend UITreeBackend) (*Node, error) {
 	var xmlContent []byte
 	var err error
 
 	switch backend {
 	case UITreeBackendUiautomator:
+		// `uiautomator dump --windows` on Android 12+, plain dump below it.
 		xmlContent, err = d.getPageXMLByCmd()
 		if err != nil {
 			slog.Warn("uiautomator dump failed, falling back to uiautomator2", "error", err)
 		}
-	default: // UITreeBackendYadb
-		// First try yadb's efficient layout dump
+	case UITreeBackendYadb:
+		// Explicit yadb: the fast single-window layout dump.
 		xmlContent, err = d.getPageXMLByYadb()
 		if err != nil {
 			slog.Warn("yadb layout dump failed, falling back to uiautomator dump", "error", err)
 		}
-		// Then fallback to uiautomator dump
 		if len(xmlContent) == 0 {
 			xmlContent, err = d.getPageXMLByCmd()
+			if err != nil {
+				slog.Warn("uiautomator dump failed, falling back to uiautomator2", "error", err)
+			}
+		}
+	default:
+		// No preference: start with the multi-window dump so the default
+		// /uitree sees every window on the main display.
+		xmlContent, err = d.getPageXMLByWindows()
+		if err != nil {
+			slog.Warn("uiautomator --windows dump failed, falling back to yadb", "error", err)
+		}
+		if len(xmlContent) == 0 {
+			xmlContent, err = d.getPageXMLByYadb()
+			if err != nil {
+				slog.Warn("yadb layout dump failed, falling back to uiautomator dump", "error", err)
+			}
+		}
+		if len(xmlContent) == 0 {
+			xmlContent, err = d.getPageXMLByPlainCmd()
 			if err != nil {
 				slog.Warn("uiautomator dump failed, falling back to uiautomator2", "error", err)
 			}
@@ -400,10 +422,8 @@ func (d *AndroidDevice) getPageXMLByU2() ([]byte, error) {
 	return []byte(respBody.Result), nil
 }
 
-// getPageXMLByCmd retrieves the UI hierarchy for the main screen using uiautomator dump
-func (d *AndroidDevice) getPageXMLByCmd() ([]byte, error) {
-	// Run uiautomator to dump the UI hierarchy to /sdcard/window_dump.xml then cat it
-	cmd := "uiautomator dump /sdcard/window_dump.xml"
+// dumpUITreeXML runs a uiautomator dump command and reads the resulting file.
+func (d *AndroidDevice) dumpUITreeXML(cmd string) ([]byte, error) {
 	output, err := d.RunShell(cmd, 15000)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to run uiautomator dump")
@@ -417,6 +437,31 @@ func (d *AndroidDevice) getPageXMLByCmd() ([]byte, error) {
 		return nil, errors.Wrap(err, "failed to open UI dump file")
 	}
 	return []byte(dumpContent), nil
+}
+
+// getPageXMLByWindows dumps every window on the main display with
+// `uiautomator dump --windows` (Android 12+). The output root is <displays>
+// and is understood by ParseUIXML.
+func (d *AndroidDevice) getPageXMLByWindows() ([]byte, error) {
+	return d.dumpUITreeXML("uiautomator dump --windows /sdcard/window_dump.xml")
+}
+
+// getPageXMLByPlainCmd dumps only the focused window. It is used on Android 11
+// and older, where --windows is not supported.
+func (d *AndroidDevice) getPageXMLByPlainCmd() ([]byte, error) {
+	return d.dumpUITreeXML("uiautomator dump /sdcard/window_dump.xml")
+}
+
+// getPageXMLByCmd retrieves the UI hierarchy for the main screen using
+// uiautomator dump, preferring the multi-window form and falling back to the
+// plain single-window dump on older Android versions.
+func (d *AndroidDevice) getPageXMLByCmd() ([]byte, error) {
+	xmlContent, err := d.getPageXMLByWindows()
+	if err == nil {
+		return xmlContent, nil
+	}
+	slog.Warn("uiautomator --windows dump failed, falling back to single-window dump", "error", err)
+	return d.getPageXMLByPlainCmd()
 }
 
 func (d *AndroidDevice) Swipe(x1, y1, x2, y2, durationMs int) error {

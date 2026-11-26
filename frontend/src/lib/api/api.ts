@@ -33,7 +33,8 @@ export type DumpBackend = "yadb" | "uiautomator";
 
 /**
  * Fetch UI tree (main screen) for a device by id.
- * `backend` selects the Android dump method; omit it to use the default (yadb).
+ * `backend` selects the Android dump method; omit it to use the server default
+ * (multi-window uiautomator dump on Android 12+).
  * Returns a `UINode` or `null` according to the API spec.
  */
 export async function getUiTree(deviceId: string, backend?: DumpBackend): Promise<UINode | null> {

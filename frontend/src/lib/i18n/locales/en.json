@@ -330,7 +330,7 @@
       "selectNode": "Select a node",
       "dumpBackend": "Dump method",
       "dumpBackendYadb": "yadb (fast)",
-      "dumpBackendUiautomator": "adb",
+      "dumpBackendUiautomator": "adb (all windows)",
       "xpathHint": "Supports XPath; press Enter to query"
     },
     "layout": {

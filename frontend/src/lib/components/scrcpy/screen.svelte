@@ -754,9 +754,14 @@
 {/snippet}
 
 {#snippet canvasWrapper()}
+  <!-- WebKit (the macOS desktop webview) lets this flex item fill the available
+       width instead of shrinking to the height-constrained video, which leaves a
+       wide empty strip between a portrait screen and the right-hand toolbar.
+       Pinning the wrapper to the video aspect ratio makes it hug the canvas. -->
   <div
     class="relative flex max-h-full max-w-full min-h-0 min-w-0"
-    style:max-width={isTiny || !showRightBar ? "100%" : "calc(100% - 40px)"}>
+    style:max-width={isTiny || !showRightBar ? "100%" : "calc(100% - 40px)"}
+    style:aspect-ratio={isPortrait ? `${screenWidth} / ${screenHeight}` : undefined}>
     {#key wsURL}
       <canvas
         class="max-h-full max-w-full object-contain border rounded-md border-gray-300 dark:border-slate-700 transition-opacity"

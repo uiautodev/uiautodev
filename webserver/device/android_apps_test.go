@@ -3,6 +3,7 @@ package device
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/codeskyblue/go-adbkit/adb"
 )
@@ -173,5 +174,32 @@ func TestAndroidInstallAppReportsRejectedPackage(t *testing.T) {
 	d := &AndroidDevice{serial: "test"}
 	if err := d.InstallApp("/tmp/game.apk"); err == nil {
 		t.Fatal("expected an install failure")
+	}
+}
+
+func TestAndroidInstallAppTimesOut(t *testing.T) {
+	originalInstall := installAndroidPackage
+	originalTimeout := androidInstallTimeout
+	t.Cleanup(func() {
+		installAndroidPackage = originalInstall
+		androidInstallTimeout = originalTimeout
+	})
+
+	release := make(chan struct{})
+	defer close(release)
+	installAndroidPackage = func(_ *adb.Device, _ string) (bool, error) {
+		<-release
+		return true, nil
+	}
+	androidInstallTimeout = 20 * time.Millisecond
+
+	d := &AndroidDevice{serial: "test"}
+	start := time.Now()
+	err := d.InstallApp("/tmp/game.apk")
+	if err == nil || !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("expected a timeout error, got %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("install did not return promptly: %s", elapsed)
 	}
 }

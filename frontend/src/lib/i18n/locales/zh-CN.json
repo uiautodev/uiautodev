@@ -16,10 +16,6 @@
       "system": "跟随系统"
     },
     "language": "语言",
-    "width": {
-      "toWide": "切换为宽屏",
-      "toNarrow": "切换为窄屏"
-    },
     "feedback": "意见反馈",
     "new": "新",
     "newVersionAvailable": "发现新版本 v{version}",

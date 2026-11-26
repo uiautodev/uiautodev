@@ -17,7 +17,6 @@
   import DeviceIosSettings from "$lib/components/device/DeviceIosSettings.svelte";
   import PresenceBadge from "$lib/components/device/PresenceBadge.svelte";
   import { identityStore } from "$lib/stores/identity.svelte";
-  import { widthStore } from "$lib/stores/width.svelte";
 
   let devices = $state<APIDevice[]>([]);
   let loading = $state(true);
@@ -308,9 +307,9 @@
 {/snippet}
 
 <div class="flex flex-col h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-  <AppHeader active="device" widthToggle />
+  <AppHeader active="device" />
   <main class="flex-1 min-h-0 overflow-y-auto">
-    <div class="mx-auto px-4 py-6" class:max-w-4xl={widthStore.value === "narrow"}>
+    <div class="px-4 py-6">
       <div class="flex items-center gap-2 mb-2">
         <UnderlineTabs.Root bind:value={platformFilter} class="flex-1 min-w-0">
           <UnderlineTabs.List>

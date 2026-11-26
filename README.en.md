@@ -44,7 +44,7 @@ WebDriverAgent, Xcode build or code signing is involved.
 - Start the simulator with Device Hub or `xcrun simctl boot <UDID>`; only booted simulators are listed.
 - The first interaction downloads the pinned runner from GitHub Releases (about 10 MB, FSL-1.1,
   fetched at runtime and not bundled with the installer), installs it and caches it under
-  `~/Library/Application Support/uiautodev/devicekit-ios/`. The download goes through the
+  `~/Library/Application Support/uiautodev/devicekit-ios/sim/`. The download goes through the
   [gh-proxy.com](https://gh-proxy.com/) mirror first, then other public mirrors, and only
   then github.com directly. Offline, simulators can be listed but not controlled.
 - With several booted simulators the ports are allocated automatically from `8100` in UDID order

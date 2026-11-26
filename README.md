@@ -47,7 +47,7 @@ macOS 上已经启动（Booted）的 iOS 模拟器会和真机一样出现在设
 - 先用 Device Hub 或 `xcrun simctl boot <UDID>` 启动模拟器；只列出已启动的模拟器。
 - 首次操作某个模拟器时会从 GitHub Releases 下载固定版本的 runner（约 10 MB，FSL-1.1
   许可，运行时下载、不随安装包分发），安装并启动后缓存到
-  `~/Library/Application Support/uiautodev/devicekit-ios/`。下载优先走
+  `~/Library/Application Support/uiautodev/devicekit-ios/sim/`。下载优先走
   [gh-proxy.com](https://gh-proxy.com/) 镜像，失败时依次尝试其它公共镜像，最后才直连
   GitHub。离线时只能列出模拟器，无法操作。
 - 多个模拟器同时运行时，会从 `8100` 开始按 UDID 顺序自动分配端口，并在进程内保持不变。

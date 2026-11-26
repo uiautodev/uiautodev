@@ -53,7 +53,8 @@
   const showStack = $derived(showAvatars && otherOccupants.length > 0);
 </script>
 
-<div class="flex shrink-0 items-center gap-2 min-w-0">
+<!-- isolate keeps the avatars' z-10 badge below the sticky actions column. -->
+<div class="flex shrink-0 items-center gap-2 min-w-0 isolate">
   {#if occupancy}
     {#if !showStack || state === "mine" || state === "busy" || state === "preempted"}
       <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-sm {tone}">

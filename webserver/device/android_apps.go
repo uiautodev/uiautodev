@@ -2,9 +2,13 @@ package device
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
+
+	"github.com/codeskyblue/go-adbkit/adb"
 )
 
 var (
@@ -143,6 +147,65 @@ func (d *AndroidDevice) StopApp(appID string) error {
 	}
 	_, err := d.RunShell("am force-stop "+appID, 10000)
 	return err
+}
+
+// installAndroidPackage is a variable so tests can observe the package path
+// without a device.
+var installAndroidPackage = func(device *adb.Device, apkPath string) (bool, error) {
+	return device.Install(apkPath)
+}
+
+// androidInstallTimeout bounds one APK install. adbkit's Device.Install only
+// does blocking transport reads, with no context and no socket deadline, so a
+// hung device would keep the HTTP request and the upload temp file alive
+// forever. It is a variable so tests can shorten it.
+var androidInstallTimeout = appInstallTimeout
+
+// InstallApp installs an APK. adbkit streams the package with abb_exec when the
+// device supports it and falls back to push plus `pm install` otherwise.
+func (d *AndroidDevice) InstallApp(localPath string) error {
+	if err := validatePackageExtension(localPath, AndroidPackageExtension); err != nil {
+		return err
+	}
+	type installResult struct {
+		installed bool
+		err       error
+	}
+	// Install cannot be cancelled, so the caller stops waiting on timeout and
+	// leaves the goroutine to finish on its own. The buffered channel keeps it
+	// from blocking when it eventually returns.
+	install := installAndroidPackage
+	done := make(chan installResult, 1)
+	go func() {
+		installed, err := install(d.getAdbkitDevice(), localPath)
+		done <- installResult{installed: installed, err: err}
+	}()
+
+	var installed bool
+	timer := time.NewTimer(androidInstallTimeout)
+	defer timer.Stop()
+	select {
+	case result := <-done:
+		if result.err != nil {
+			return result.err
+		}
+		installed = result.installed
+	case <-timer.C:
+		return fmt.Errorf(
+			"adb install timed out after %s; the app may still be installing on the device",
+			androidInstallTimeout,
+		)
+	}
+	// adbkit reports a rejected package as (false, nil).
+	if !installed {
+		return fmt.Errorf("adb did not report a successful install of %s", filepath.Base(localPath))
+	}
+	return nil
+}
+
+// PackageExtension returns the installable Android package extension.
+func (d *AndroidDevice) PackageExtension() string {
+	return AndroidPackageExtension
 }
 
 // CurrentApp returns the foreground app and activity.

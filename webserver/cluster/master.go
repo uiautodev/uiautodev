@@ -245,7 +245,7 @@ func (m *Master) runDirectPoller(ctx context.Context, slaveID string) {
 
 func newDirectClient(record SlaveRecord) *http.Client {
 	transport := &http.Transport{
-		ResponseHeaderTimeout: 30 * time.Second,
+		ResponseHeaderTimeout: slaveResponseHeaderTimeout,
 		MaxIdleConns:          10,
 		IdleConnTimeout:       90 * time.Second,
 	}
@@ -399,7 +399,21 @@ func (m *Master) currentSession(slaveID, kind string) *yamux.Session {
 	return state.session(kind)
 }
 
+// slaveResponseHeaderTimeout bounds waiting for a slave's response headers.
+// App installs are exempt; see appInstallProxyTimeout.
+var slaveResponseHeaderTimeout = 30 * time.Second
+
+// appInstallProxyTimeout replaces slaveResponseHeaderTimeout for a proxied app
+// install. The timeout starts when the upload finished, while the slave sends
+// its headers only after the ten-minute install, so the default 30s would turn
+// a successful remote install into a 502.
+var appInstallProxyTimeout = 15 * time.Minute
+
 func (m *Master) transport(slaveID, kind string) *http.Transport {
+	return m.transportWithTimeout(slaveID, kind, slaveResponseHeaderTimeout)
+}
+
+func (m *Master) transportWithTimeout(slaveID, kind string, headerTimeout time.Duration) *http.Transport {
 	return &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			session := m.currentSession(slaveID, kind)
@@ -411,7 +425,7 @@ func (m *Master) transport(slaveID, kind string) *http.Transport {
 		DisableKeepAlives:     true,
 		MaxIdleConns:          -1,
 		IdleConnTimeout:       0,
-		ResponseHeaderTimeout: 30 * time.Second,
+		ResponseHeaderTimeout: headerTimeout,
 	}
 }
 
@@ -425,6 +439,47 @@ func (m *Master) newClient(slaveID, kind string) *http.Client {
 	}
 	m.mu.RUnlock()
 	return &http.Client{Transport: m.transport(slaveID, kind)}
+}
+
+// isAppInstallRequest reports whether a device request uploads and installs a
+// package, which only completes once the device finished installing it.
+func isAppInstallRequest(method, path string) bool {
+	return method == http.MethodPost && strings.HasSuffix(path, "/apps")
+}
+
+// proxyTransport returns the transport for one proxied device request. An app
+// install gets appInstallProxyTimeout instead of the default header timeout.
+func (m *Master) proxyTransport(slaveID, kind string, direct bool, method, path string) http.RoundTripper {
+	install := isAppInstallRequest(method, path)
+	if direct {
+		client := m.newClient(slaveID, kind)
+		switch {
+		case client.Transport == nil && install:
+			return m.transportWithTimeout(slaveID, kind, appInstallProxyTimeout)
+		case client.Transport == nil:
+			return m.transport(slaveID, kind)
+		case install:
+			return transportWithHeaderTimeout(client.Transport, appInstallProxyTimeout)
+		default:
+			return client.Transport
+		}
+	}
+	if install {
+		return m.transportWithTimeout(slaveID, kind, appInstallProxyTimeout)
+	}
+	return m.transport(slaveID, kind)
+}
+
+// transportWithHeaderTimeout clones a transport with a different response
+// header timeout, so the shared client's connection pool keeps its own default.
+func transportWithHeaderTimeout(transport http.RoundTripper, timeout time.Duration) http.RoundTripper {
+	base, ok := transport.(*http.Transport)
+	if !ok {
+		return transport
+	}
+	clone := base.Clone()
+	clone.ResponseHeaderTimeout = timeout
+	return clone
 }
 
 // slaveBaseURL returns the request base URL and Basic Auth credentials for a

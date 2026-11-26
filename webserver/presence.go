@@ -713,6 +713,10 @@ func isControlRequest(c echo.Context) bool {
 		return true
 	case strings.HasSuffix(path, "/start"), strings.HasSuffix(path, "/stop"):
 		return true
+	case method == http.MethodPost && strings.HasSuffix(path, "/apps"):
+		// Installing a package changes the device, while GET .../apps only
+		// lists packages and stays readable for observers.
+		return true
 	}
 	return false
 }

@@ -1,6 +1,10 @@
 package device
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/uiautodev/go-hdckit/hdc"
+)
 
 func TestParseHarmonyAppList(t *testing.T) {
 	output := "com.example.one\ncom.example.two\n\ncom.example.one\nbad bundle!\n"
@@ -178,5 +182,34 @@ func TestHarmonyCommandFailure(t *testing.T) {
 				t.Fatalf("unexpected failure %q", failure)
 			}
 		})
+	}
+}
+
+func TestHarmonyInstallApp(t *testing.T) {
+	original := installHarmonyPackage
+	t.Cleanup(func() { installHarmonyPackage = original })
+
+	var got string
+	installHarmonyPackage = func(_ *hdc.Target, hapPath string) error {
+		got = hapPath
+		return nil
+	}
+
+	d := NewHarmonyOSDevice("test")
+	if err := d.InstallApp("/tmp/game.hap"); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	if got != "/tmp/game.hap" {
+		t.Fatalf("installer got %q", got)
+	}
+	if ext := d.PackageExtension(); ext != HarmonyPackageExtension {
+		t.Fatalf("package extension %q", ext)
+	}
+}
+
+func TestHarmonyInstallAppRejectsOtherPackages(t *testing.T) {
+	d := NewHarmonyOSDevice("test")
+	if err := d.InstallApp("/tmp/game.apk"); err == nil {
+		t.Fatal("expected an extension error")
 	}
 }

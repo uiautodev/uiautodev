@@ -1,6 +1,7 @@
 <script lang="ts">
   import * as Tabs from "$lib/components/ui/tabs/index.js";
   import Separator from "../../ui/separator/separator.svelte";
+  import AppInstall from "../cards/AppInstall.svelte";
   import CurrentApp from "../cards/CurrentApp.svelte";
   import Clipboard from "../cards/Clipboard.svelte";
   import AutoGLM from "../cards/AutoGLM.svelte";
@@ -25,7 +26,15 @@
   const terminalEnabled = $derived((platform === "android" || platform === "harmony") && !remote);
 
   // define cards here so page doesn't need to manage them
-  const cards = [CurrentApp, Clipboard];
+  // Only the cards that make sense for the platform are shown: iOS app actions
+  // go through WDA and it has no clipboard API, so it only gets the install
+  // card. The demo device has no app management at all.
+  function cardsFor(platform: string) {
+    if (platform === "ios") return [AppInstall];
+    if (platform === "demo") return [CurrentApp, Clipboard];
+    return [AppInstall, CurrentApp, Clipboard];
+  }
+  const cards = $derived(cardsFor(platform));
   let tabValue = useLocalStorage("device-cards-tab", "inspect");
 
   // 从屏幕或元素树选中元素时，自动切换到 inspect 标签
@@ -57,7 +66,7 @@
       <Tabs.Trigger disabled={!terminalEnabled} value="terminal" class="w-30"
         >{$t("device.tabs.terminal")}</Tabs.Trigger>
       <Tabs.Trigger value="mcp" class="w-30">{$t("device.tabs.mcp")}</Tabs.Trigger>
-      <Tabs.Trigger disabled={platform === "ios" || platform === "demo"} value="common" class="w-30"
+      <Tabs.Trigger disabled={platform === "demo"} value="common" class="w-30"
         >{$t("device.tabs.common")}</Tabs.Trigger>
       <Tabs.Trigger value="plugin" class="w-30">{$t("device.tabs.plugin")}</Tabs.Trigger>
       {#each tabPlugins as plugin}

@@ -492,6 +492,7 @@ func CreateEchoServerWithConfig(config ServerConfig) *echo.Echo {
 	e.GET("/api/v1/devices/:device_id/window/size", deviceWindowSizeHandler)
 	e.GET("/api/v1/devices/:device_id/encoders", deviceEncodersHandler)
 	e.GET("/api/v1/devices/:device_id/apps", appsListHandler)
+	e.POST("/api/v1/devices/:device_id/apps", appInstallHandler)
 	e.GET("/api/v1/devices/:device_id/apps/current", appCurrentHandler)
 	e.POST("/api/v1/devices/:device_id/apps/:app_id/start", appStartHandler)
 	e.POST("/api/v1/devices/:device_id/apps/:app_id/stop", appStopHandler)

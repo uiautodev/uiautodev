@@ -219,6 +219,19 @@ export interface ClusterSlaveTokenResult {
 export const APP_SCOPE_LIST = ["user", "system", "all"] as const;
 export type AppScope = (typeof APP_SCOPE_LIST)[number];
 
+// Installable package extension per device platform. The backend validates the
+// same mapping, so a new platform must be added in both places.
+export const APP_PACKAGE_EXTENSION = {
+    android: ".apk",
+    ios: ".ipa",
+    harmony: ".hap",
+} as const;
+export type AppPackagePlatform = keyof typeof APP_PACKAGE_EXTENSION;
+
+export function appPackageExtension(platform: string): string {
+    return APP_PACKAGE_EXTENSION[platform as AppPackagePlatform] ?? "";
+}
+
 export interface DeviceAppList {
     apps: string[];
 }

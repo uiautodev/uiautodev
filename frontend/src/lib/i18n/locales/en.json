@@ -361,6 +361,16 @@
       "copiedImage": "Copied the image to the computer",
       "copyImageFailed": "Failed to copy the image to the computer"
     },
+    "appInstall": {
+      "title": "Install app",
+      "description": "Choose a {ext} package and install it on this device",
+      "chooseFile": "Choose package",
+      "install": "Install",
+      "installing": "Installing...",
+      "invalidFile": "Choose a {ext} package",
+      "success": "Installed {name}",
+      "failed": "Install failed: {error}"
+    },
     "platform": {
       "android": "Android model",
       "ios": "iOS",

@@ -309,7 +309,7 @@
 <div class="flex flex-col h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
   <AppHeader active="device" />
   <main class="flex-1 min-h-0 overflow-y-auto">
-    <div class="container mx-auto px-4 py-6 max-w-4xl">
+    <div class="px-4 py-6">
       <div class="flex items-center gap-2 mb-2">
         <UnderlineTabs.Root bind:value={platformFilter} class="flex-1 min-w-0">
           <UnderlineTabs.List>

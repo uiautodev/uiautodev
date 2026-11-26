@@ -37,6 +37,26 @@
 `~/Library/Application Support/uiautodev/bin/`（Windows 为
 `%LOCALAPPDATA%\uiautodev\bin`）。如果系统 PATH 里已经有 `ios`，会优先使用它。
 
+## iOS 模拟器
+
+macOS 上已经启动（Booted）的 iOS 模拟器会和真机一样出现在设备列表里，设备 ID 仍是
+`i-<UDID>`。模拟器通过
+[devicekit-ios](https://github.com/mobile-next/devicekit-ios) 的预编译 XCUITest runner
+交互，不需要 WebDriverAgent，也不需要自己用 Xcode 编译或签名。
+
+- 先用 Device Hub 或 `xcrun simctl boot <UDID>` 启动模拟器；只列出已启动的模拟器。
+- 首次操作某个模拟器时会从 GitHub Releases 下载固定版本的 runner（约 10 MB，FSL-1.1
+  许可，运行时下载、不随安装包分发），安装并启动后缓存到
+  `~/Library/Application Support/uiautodev/devicekit-ios/sim/`。下载优先走
+  [gh-proxy.com](https://gh-proxy.com/) 镜像，失败时依次尝试其它公共镜像，最后才直连
+  GitHub；下载后会按架构校验固定版本的大小和 SHA-256，不一致就丢弃并换下一个来源。
+  后台 WDA watcher 不会自动为模拟器下载 runner，只有实际交互时才会触发。离线时只能
+  列出模拟器，无法操作。
+- 多个模拟器同时运行时，会从 `8100` 开始按 UDID 顺序自动分配端口，并在进程内保持不变。
+  也可以在设备设置里为该设备填写 WDA 端口来覆盖自动分配；模拟器用同一个端口同时提供
+  JSON-RPC 和 MJPEG，设置里的 MJPEG 端口对模拟器不生效。
+- 真机仍然需要 WebDriverAgent（`ios` 辅助程序），模拟器不影响原有真机流程。
+
 ## uiautodev-server 命令行参数
 
 | 参数 | 默认值 | 说明 |

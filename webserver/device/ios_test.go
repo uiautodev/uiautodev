@@ -1,8 +1,18 @@
 package device
 
 import (
+	"os"
 	"testing"
 )
+
+// simulatorIntegrationEnv gates tests that install and launch the devicekit
+// runner on a real booted simulator. Without it, go test ./... would download a
+// runner from the internet and terminate the one a running daemon is using.
+const simulatorIntegrationEnv = "UIAUTODEV_TEST_SIMULATOR"
+
+func simulatorIntegrationEnabled() bool {
+	return os.Getenv(simulatorIntegrationEnv) != ""
+}
 
 func TestIOSDeviceUsesConfiguredConfig(t *testing.T) {
 	SetIOSConfigResolver(func(udid string) IOSConfig {
@@ -76,7 +86,21 @@ func getTestIOSDevice(t *testing.T) *IOSDevice {
 		return nil
 	}
 
+	// Prefer a physical device: a simulator needs the devicekit runner and its
+	// first-use download, which would slow down the general test suite.
 	udid := serials[0]
+	physical := ""
+	for _, serial := range serials {
+		if !isSimulatorUDID(serial) {
+			physical = serial
+			break
+		}
+	}
+	if physical != "" {
+		udid = physical
+	} else if !simulatorIntegrationEnabled() {
+		t.Skipf("only iOS simulators are available; set %s=1 to run simulator tests", simulatorIntegrationEnv)
+	}
 	t.Logf("Using device: %s", udid)
 	return NewIOSDevice(udid)
 }
@@ -99,6 +123,11 @@ func TestIOSScreenshot(t *testing.T) {
 	device := getTestIOSDevice(t)
 	if device == nil {
 		return
+	}
+	if device.simulator {
+		if err := device.EnsureWDA(); err != nil {
+			t.Skipf("devicekit runner unavailable: %v", err)
+		}
 	}
 
 	img, err := device.Screenshot()

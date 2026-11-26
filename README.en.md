@@ -46,7 +46,10 @@ WebDriverAgent, Xcode build or code signing is involved.
   fetched at runtime and not bundled with the installer), installs it and caches it under
   `~/Library/Application Support/uiautodev/devicekit-ios/sim/`. The download goes through the
   [gh-proxy.com](https://gh-proxy.com/) mirror first, then other public mirrors, and only
-  then github.com directly. Offline, simulators can be listed but not controlled.
+  then github.com directly; the archive is checked against the pinned per-architecture size
+  and SHA-256, and a mismatch is discarded in favour of the next source. The background WDA
+  watcher never downloads the runner for a simulator; that only happens on real interaction.
+  Offline, simulators can be listed but not controlled.
 - With several booted simulators the ports are allocated automatically from `8100` in UDID order
   and stay fixed for the life of the process. Set the WDA port in the device settings to override
   it. A simulator serves JSON-RPC and MJPEG on that one port, so the MJPEG port setting does not

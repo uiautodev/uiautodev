@@ -8,12 +8,14 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestIsSimulatorUDID(t *testing.T) {
@@ -135,6 +137,41 @@ func TestSimulatorPortStaysAssigned(t *testing.T) {
 	// The second simulator avoids the port already in use.
 	if got := simulatorPort(second, 0, booted); got == DefaultWDAPort {
 		t.Errorf("second simulator reused port %d", got)
+	}
+}
+
+func TestNewIOSDeviceUsesCachedSimulatorPort(t *testing.T) {
+	udid := "77777777-7777-7777-7777-777777777777"
+	simulatorPortsMu.Lock()
+	simulatorPorts[udid] = 8456
+	simulatorPortsMu.Unlock()
+	t.Cleanup(func() {
+		simulatorPortsMu.Lock()
+		delete(simulatorPorts, udid)
+		simulatorPortsMu.Unlock()
+	})
+	SetIOSConfigResolver(nil)
+
+	device := NewIOSDevice(udid)
+	if device.wdaPort != 8456 || device.mjpegPort != 8456 {
+		t.Errorf("cached port not used: wda=%d mjpeg=%d", device.wdaPort, device.mjpegPort)
+	}
+}
+
+func TestSimulatorPortOccupiedDetectsAnonymousListener(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	if !simulatorPortOccupied(port) {
+		t.Errorf("port %d with a listener was reported as free", port)
+	}
+	if err := listener.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+	if !waitSimulatorPortFree(port, 2*time.Second) {
+		t.Errorf("port %d did not become free after closing its listener", port)
 	}
 }
 
@@ -554,6 +591,9 @@ func bootedSimulatorDevice(t *testing.T) *IOSDevice {
 // simulator is booted or the devicekit runner cannot be installed (the first
 // run downloads it, so it needs network access).
 func TestIOSSimulatorDevice(t *testing.T) {
+	if !simulatorIntegrationEnabled() {
+		t.Skipf("set %s=1 to run the simulator integration test", simulatorIntegrationEnv)
+	}
 	if testing.Short() {
 		t.Skip("skipping simulator integration test in short mode")
 	}

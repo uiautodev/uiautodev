@@ -1,6 +1,8 @@
 package device
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -83,6 +85,31 @@ func TestDevicekitDownloadURLsMirrorFirst(t *testing.T) {
 	}
 }
 
+func TestDevicekitAssetsArePinned(t *testing.T) {
+	for _, goarch := range []string{"arm64", "amd64"} {
+		asset, err := devicekitAssetFor(devicekitTargetSimulator, goarch)
+		if err != nil {
+			t.Fatalf("%s: %v", goarch, err)
+		}
+		if len(asset.SHA256) != sha256.Size*2 {
+			t.Errorf("%s SHA-256 = %q, want 64 hex characters", goarch, asset.SHA256)
+		}
+		if asset.Size <= 0 {
+			t.Errorf("%s size = %d", goarch, asset.Size)
+		}
+	}
+}
+
+func testDevicekitAsset(t *testing.T, archive []byte) devicekitAsset {
+	t.Helper()
+	digest := sha256.Sum256(archive)
+	return devicekitAsset{
+		Name:   devicekitRunnerAppName,
+		Size:   int64(len(archive)),
+		SHA256: hex.EncodeToString(digest[:]),
+	}
+}
+
 func TestDownloadDevicekitRunnerFallsBackToMirror(t *testing.T) {
 	zipPath := filepath.Join(t.TempDir(), "runner.zip")
 	writeTestZip(t, zipPath, map[string]string{
@@ -92,6 +119,7 @@ func TestDownloadDevicekitRunnerFallsBackToMirror(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read test zip: %v", err)
 	}
+	asset := testDevicekitAsset(t, archive)
 
 	github := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "blocked", http.StatusServiceUnavailable)
@@ -108,7 +136,7 @@ func TestDownloadDevicekitRunnerFallsBackToMirror(t *testing.T) {
 	defer mirror.Close()
 
 	dir := t.TempDir()
-	got, err := downloadDevicekitRunner(t.Context(), []string{github.URL, mirrorErrorPage.URL, mirror.URL}, dir, devicekitRunnerAppName+"/Info.plist")
+	got, err := downloadDevicekitRunner(t.Context(), []string{github.URL, mirrorErrorPage.URL, mirror.URL}, dir, asset)
 	if err != nil {
 		t.Fatalf("downloadDevicekitRunner() error: %v", err)
 	}
@@ -127,7 +155,8 @@ func TestDownloadDevicekitRunnerReportsAllSources(t *testing.T) {
 	defer failing.Close()
 
 	dir := t.TempDir()
-	_, err := downloadDevicekitRunner(t.Context(), []string{failing.URL, failing.URL}, dir, devicekitRunnerAppName+"/Info.plist")
+	asset := devicekitAsset{Name: devicekitRunnerAppName, Size: 1024, SHA256: strings.Repeat("0", sha256.Size*2)}
+	_, err := downloadDevicekitRunner(t.Context(), []string{failing.URL, failing.URL}, dir, asset)
 	if err == nil {
 		t.Fatal("expected an error when every source fails")
 	}
@@ -140,5 +169,57 @@ func TestDownloadDevicekitRunnerReportsAllSources(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Errorf("failed downloads left files behind: %v", entries)
+	}
+}
+
+func TestDownloadDevicekitRunnerRejectsModifiedArchive(t *testing.T) {
+	zipPath := filepath.Join(t.TempDir(), "runner.zip")
+	writeTestZip(t, zipPath, map[string]string{
+		devicekitRunnerAppName + "/Info.plist": "plist",
+	})
+	archive, err := os.ReadFile(zipPath)
+	if err != nil {
+		t.Fatalf("read test zip: %v", err)
+	}
+	asset := testDevicekitAsset(t, archive)
+	asset.SHA256 = strings.Repeat("0", sha256.Size*2)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(archive)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	if _, err := downloadDevicekitRunner(t.Context(), []string{srv.URL}, dir, asset); err == nil || !strings.Contains(err.Error(), "SHA-256") {
+		t.Fatalf("expected a SHA-256 error, got %v", err)
+	}
+	entries, readErr := os.ReadDir(dir)
+	if readErr != nil {
+		t.Fatalf("read dir: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Errorf("rejected download left files behind: %v", entries)
+	}
+}
+
+func TestDownloadDevicekitRunnerRejectsOversizedArchive(t *testing.T) {
+	archive := []byte(strings.Repeat("x", 2048))
+	asset := testDevicekitAsset(t, archive)
+	asset.Size = 1024
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(archive)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	_, err := downloadDevicekitRunner(t.Context(), []string{srv.URL}, dir, asset)
+	if err == nil || !strings.Contains(err.Error(), "archive") {
+		t.Fatalf("expected an archive size error, got %v", err)
+	}
+	entries, readErr := os.ReadDir(dir)
+	if readErr != nil {
+		t.Fatalf("read dir: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Errorf("oversized download left files behind: %v", entries)
 	}
 }

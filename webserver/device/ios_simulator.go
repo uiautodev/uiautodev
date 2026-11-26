@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -30,6 +31,10 @@ const (
 	devicekitHealthTimeout  = 120 * time.Second
 	simulatorToolTimeout    = 30 * time.Second
 	simulatorInstallTimeout = 2 * time.Minute
+	// simulatorLaunchFailureBackoff stops every tap/screenshot from retrying a
+	// failed download or launch for a while.
+	simulatorLaunchFailureBackoff = 30 * time.Second
+	simulatorPortProbeTimeout     = 500 * time.Millisecond
 )
 
 var simulatorUUIDPattern = regexp.MustCompile(`^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$`)
@@ -169,7 +174,20 @@ var (
 	// started on the stored port, so later requests can trust /health without
 	// terminating and relaunching it.
 	simulatorRunnerConfirmations sync.Map // udid -> int
+	// simulatorLaunchFailures stores a short backoff after a failed download or
+	// launch, keyed by simulator UDID.
+	simulatorLaunchFailures sync.Map // udid -> time.Time
 )
+
+// cachedSimulatorPort returns the port already assigned to a simulator in this
+// process. NewIOSDevice runs on every interaction, so it must not spawn simctl
+// just to recompute a port that is already known.
+func cachedSimulatorPort(udid string) (int, bool) {
+	simulatorPortsMu.Lock()
+	defer simulatorPortsMu.Unlock()
+	port, ok := simulatorPorts[udid]
+	return port, ok
+}
 
 // simulatorPort assigns a simulator its port once and keeps it for the life of
 // the process. Without the cache, booting another simulator whose UDID sorts
@@ -256,9 +274,13 @@ func ensureDevicekitRunner() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	asset, err := devicekitAssetFor(devicekitTargetSimulator, runtime.GOARCH)
+	if err != nil {
+		return "", err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), devicekitDownloadTimeout)
 	defer cancel()
-	zipPath, err := downloadDevicekitRunner(ctx, urls, dir, devicekitRunnerAppName+"/Info.plist")
+	zipPath, err := downloadDevicekitRunner(ctx, urls, dir, asset)
 	if err != nil {
 		return "", err
 	}
@@ -356,11 +378,30 @@ func terminateSimulatorRunner(udid string) {
 	_, _ = runSimctl(ctx, "terminate", udid, devicekitRunnerBundleID)
 }
 
-// waitSimulatorPortReleased gives a terminated runner a moment to close its
+// simulatorPortOccupied reports whether anything listens on the loopback port.
+// It deliberately does not require a devicekit /health response: a foreign
+// process on the assigned port must be detected before launching, otherwise the
+// runner cannot bind and the health wait runs until it times out.
+func simulatorPortOccupied(port int) bool {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), simulatorPortProbeTimeout)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
+// waitSimulatorPortFree gives a terminated runner a moment to close its
 // listener, so a restart keeps its assigned port instead of walking upward.
-func waitSimulatorPortReleased(port int, timeout time.Duration) {
+func waitSimulatorPortFree(port int, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) && devicekitHealthy(port) {
+	for {
+		if !simulatorPortOccupied(port) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
 		time.Sleep(100 * time.Millisecond)
 	}
 }
@@ -414,23 +455,27 @@ func launchSimulatorRunner(udid string, port int) error {
 		return errors.New("iOS simulators are only supported on macOS")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), simulatorInstallTimeout)
-	defer cancel()
-
 	// A running runner keeps its old port; stop it so the launch below takes
 	// effect. The error is ignored because it may not be running.
-	_, _ = runSimctl(ctx, "terminate", udid, devicekitRunnerBundleID)
+	terminateSimulatorRunner(udid)
 	if !simulatorRunnerInstalled(udid) {
+		// The first download can take minutes on a mirror. It has its own
+		// timeout, and install/launch/health must start counting only after it
+		// returns, or a slow download leaves an already-expired install context.
 		appPath, err := ensureDevicekitRunner()
 		if err != nil {
 			return err
 		}
-		if _, err := runSimctl(ctx, "install", udid, appPath); err != nil {
+		installCtx, installCancel := context.WithTimeout(context.Background(), simulatorInstallTimeout)
+		defer installCancel()
+		if _, err := runSimctl(installCtx, "install", udid, appPath); err != nil {
 			return errors.Wrap(err, "install devicekit runner")
 		}
 	}
 
-	cmd := NewCommandContext(ctx, "xcrun", "simctl", "launch", udid, devicekitRunnerBundleID)
+	launchCtx, launchCancel := context.WithTimeout(context.Background(), simulatorToolTimeout)
+	defer launchCancel()
+	cmd := NewCommandContext(launchCtx, "xcrun", "simctl", "launch", udid, devicekitRunnerBundleID)
 	cmd.Env = append(os.Environ(), fmt.Sprintf("SIMCTL_CHILD_DEVICEKIT_LISTEN_PORT=%d", port))
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("launch devicekit runner: %w: %s", err, strings.TrimSpace(string(output)))
@@ -441,11 +486,7 @@ func launchSimulatorRunner(udid string, port int) error {
 		if devicekitHealthy(port) {
 			return nil
 		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(500 * time.Millisecond):
-		}
+		time.Sleep(500 * time.Millisecond)
 	}
 	return fmt.Errorf("devicekit runner did not become healthy on port %d within %s", port, devicekitHealthTimeout)
 }

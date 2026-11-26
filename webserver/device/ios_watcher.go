@@ -25,6 +25,12 @@ func StartIOSWDAWatcher(ctx context.Context, interval time.Duration) {
 func runIOSWDAWatcher(ctx context.Context, interval time.Duration) {
 	var retryAfter sync.Map // serial -> time.Time
 	ensure := func(serial string) {
+		// The simulator runner is downloaded on first use. Starting it from the
+		// background watcher would fetch and execute it even if the user never
+		// interacted with that simulator; EnsureWDA starts it on demand instead.
+		if isSimulatorUDID(serial) {
+			return
+		}
 		if until, ok := retryAfter.Load(serial); ok {
 			if time.Now().Before(until.(time.Time)) {
 				return

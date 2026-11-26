@@ -310,24 +310,23 @@ func NewIOSDevice(udid string) *IOSDevice {
 	if isSimulatorUDID(udid) {
 		device.simulator = true
 		device.wdaConfigured = cfg.WDAConfigured
-		var booted []string
-		if !device.wdaConfigured {
-			booted = bootedSimulatorUDIDs()
+		switch {
+		case device.wdaConfigured:
+			device.wdaPort = cfg.WDA
+		default:
+			// NewIOSDevice runs for every tap, screenshot and UI-tree request.
+			// Use the port already assigned in this process; only the first
+			// request needs the simctl device list.
+			port, ok := cachedSimulatorPort(udid)
+			if !ok {
+				port = simulatorPort(udid, 0, bootedSimulatorUDIDs())
+			}
+			device.wdaPort = port
 		}
-		device.wdaPort = simulatorPort(udid, simulatorConfiguredPort(cfg), booted)
 		// The runner serves JSON-RPC and MJPEG on the same listener.
 		device.mjpegPort = device.wdaPort
 	}
 	return device
-}
-
-// simulatorConfiguredPort returns the explicitly configured port, or zero when
-// the resolver only supplied the shared default.
-func simulatorConfiguredPort(cfg IOSConfig) int {
-	if cfg.WDAConfigured {
-		return cfg.WDA
-	}
-	return 0
 }
 
 func (d *IOSDevice) wdaURL() string {
@@ -498,15 +497,21 @@ func (d *IOSDevice) ensureSimulatorRunner() error {
 	if confirmed, ok := simulatorRunnerConfirmations.Load(d.udid); ok && confirmed.(int) == d.wdaPort && d.CheckWDA() {
 		return nil
 	}
+	if until, ok := simulatorLaunchFailures.Load(d.udid); ok && time.Now().Before(until.(time.Time)) {
+		return fmt.Errorf("devicekit runner for simulator %s failed to start recently; retrying in %s", d.udid, time.Until(until.(time.Time)).Round(time.Second))
+	}
 
 	// A runner left behind by an earlier process can hold the port assigned to
-	// another simulator. Stop this simulator's runner, then any port that still
-	// answers belongs to someone else.
+	// another simulator. Stop this simulator's runner; if it was healthy, give
+	// its listener a moment to close so it can keep the same port. A port that
+	// is still occupied afterwards belongs to a foreign process and is skipped
+	// before launching, instead of waiting for a two-minute health timeout.
+	wasHealthy := d.CheckWDA()
 	terminateSimulatorRunner(d.udid)
-	if d.CheckWDA() {
-		waitSimulatorPortReleased(d.wdaPort, 3*time.Second)
+	if wasHealthy {
+		waitSimulatorPortFree(d.wdaPort, 3*time.Second)
 	}
-	for attempts := 0; d.CheckWDA(); attempts++ {
+	for attempts := 0; simulatorPortOccupied(d.wdaPort); attempts++ {
 		if d.wdaConfigured {
 			return fmt.Errorf("simulator %s: port %d is already in use; set another WDA port in the device settings", d.udid, d.wdaPort)
 		}
@@ -520,8 +525,10 @@ func (d *IOSDevice) ensureSimulatorRunner() error {
 
 	slog.Info("starting devicekit runner for iOS simulator", "device", d.udid, "port", d.wdaPort)
 	if err := launchSimulatorRunner(d.udid, d.wdaPort); err != nil {
+		simulatorLaunchFailures.Store(d.udid, time.Now().Add(simulatorLaunchFailureBackoff))
 		return errors.Wrap(err, "EnsureWDA")
 	}
+	simulatorLaunchFailures.Delete(d.udid)
 	simulatorRunnerConfirmations.Store(d.udid, d.wdaPort)
 	return nil
 }

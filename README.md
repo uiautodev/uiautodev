@@ -49,7 +49,9 @@ macOS 上已经启动（Booted）的 iOS 模拟器会和真机一样出现在设
   许可，运行时下载、不随安装包分发），安装并启动后缓存到
   `~/Library/Application Support/uiautodev/devicekit-ios/sim/`。下载优先走
   [gh-proxy.com](https://gh-proxy.com/) 镜像，失败时依次尝试其它公共镜像，最后才直连
-  GitHub。离线时只能列出模拟器，无法操作。
+  GitHub；下载后会按架构校验固定版本的大小和 SHA-256，不一致就丢弃并换下一个来源。
+  后台 WDA watcher 不会自动为模拟器下载 runner，只有实际交互时才会触发。离线时只能
+  列出模拟器，无法操作。
 - 多个模拟器同时运行时，会从 `8100` 开始按 UDID 顺序自动分配端口，并在进程内保持不变。
   也可以在设备设置里为该设备填写 WDA 端口来覆盖自动分配；模拟器用同一个端口同时提供
   JSON-RPC 和 MJPEG，设置里的 MJPEG 端口对模拟器不生效。

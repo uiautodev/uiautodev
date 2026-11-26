@@ -3,6 +3,8 @@ package device
 import (
 	"archive/zip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
@@ -50,32 +52,65 @@ var devicekitMirrors = []func(githubURL string) string{
 	func(u string) string { return "https://ghproxy.net/" + u },
 }
 
-// devicekitAssetName returns the release asset for a target and host
+// devicekitAsset pins one release archive: its name, exact size and SHA-256.
+// The runner is installed and executed inside the simulator, so a mirror that
+// serves different bytes must never be accepted, even though the mirrors are
+// tried before github.com.
+type devicekitAsset struct {
+	Name   string
+	Size   int64
+	SHA256 string
+}
+
+// devicekitSimulatorAssets maps GOARCH to the pinned release assets of
+// devicekitVersion. Update the hashes together with the version.
+var devicekitSimulatorAssets = map[string]devicekitAsset{
+	"arm64": {
+		Name:   "devicekit-ios-Sim-arm64.zip",
+		Size:   10270152,
+		SHA256: "2eb7d66af4023f209e53a9305273198aa343249f35bbc601e8a927a290b4b076",
+	},
+	"amd64": {
+		Name:   "devicekit-ios-Sim-x86_64.zip",
+		Size:   10453967,
+		SHA256: "063a2c7457638d12a493e79546a8825ec1914d6415398fbf941454ad814a8eb3",
+	},
+}
+
+// devicekitAssetFor returns the pinned release asset for a target and host
 // architecture. Real devices are recognised as a target but their runner is not
 // wired up yet.
-func devicekitAssetName(target devicekitTarget, goarch string) (string, error) {
+func devicekitAssetFor(target devicekitTarget, goarch string) (devicekitAsset, error) {
 	if !target.Valid() {
-		return "", fmt.Errorf("invalid devicekit target %q", target)
+		return devicekitAsset{}, fmt.Errorf("invalid devicekit target %q", target)
 	}
 	if target == devicekitTargetDevice {
-		return "", fmt.Errorf("devicekit runner for real devices is not supported yet")
+		return devicekitAsset{}, fmt.Errorf("devicekit runner for real devices is not supported yet")
 	}
-	switch goarch {
-	case "arm64":
-		return "devicekit-ios-Sim-arm64.zip", nil
-	case "amd64":
-		return "devicekit-ios-Sim-x86_64.zip", nil
+	asset, ok := devicekitSimulatorAssets[goarch]
+	if !ok {
+		return devicekitAsset{}, fmt.Errorf("no devicekit runner for architecture %s", goarch)
 	}
-	return "", fmt.Errorf("no devicekit runner for architecture %s", goarch)
+	return asset, nil
+}
+
+// devicekitAssetName returns the release asset name for a target and host
+// architecture.
+func devicekitAssetName(target devicekitTarget, goarch string) (string, error) {
+	asset, err := devicekitAssetFor(target, goarch)
+	if err != nil {
+		return "", err
+	}
+	return asset.Name, nil
 }
 
 // devicekitDownloadURL returns the GitHub asset URL for a target and GOARCH.
 func devicekitDownloadURL(target devicekitTarget, goarch string) (string, error) {
-	asset, err := devicekitAssetName(target, goarch)
+	asset, err := devicekitAssetFor(target, goarch)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s/%s/%s", devicekitDownloadBaseURL, devicekitVersion, asset), nil
+	return fmt.Sprintf("%s/%s/%s", devicekitDownloadBaseURL, devicekitVersion, asset.Name), nil
 }
 
 // devicekitDownloadURLs returns the candidate URLs for a target and GOARCH: the
@@ -109,14 +144,14 @@ var devicekitDownloadClient = func() *http.Client {
 }()
 
 // downloadDevicekitRunner downloads the runner archive from the first candidate
-// URL that serves a valid archive and returns its path inside dir. requiredEntry
-// is an archive entry that must be present, so an error page served by a mirror
-// is rejected instead of being installed.
-func downloadDevicekitRunner(ctx context.Context, urls []string, dir, requiredEntry string) (string, error) {
+// URL that serves the pinned archive and returns its path inside dir. A mirror
+// error page, an oversized archive or modified bytes are rejected instead of
+// being installed.
+func downloadDevicekitRunner(ctx context.Context, urls []string, dir string, asset devicekitAsset) (string, error) {
 	failures := make([]string, 0, len(urls))
 	for _, sourceURL := range urls {
 		slog.Info("downloading devicekit runner", "url", sourceURL)
-		zipPath, err := downloadDevicekitZip(ctx, sourceURL, dir, requiredEntry)
+		zipPath, err := downloadDevicekitZip(ctx, sourceURL, dir, asset)
 		if err == nil {
 			return zipPath, nil
 		}
@@ -126,9 +161,9 @@ func downloadDevicekitRunner(ctx context.Context, urls []string, dir, requiredEn
 	return "", fmt.Errorf("download devicekit runner: %s", strings.Join(failures, "; "))
 }
 
-// downloadDevicekitZip fetches one URL into a temporary file and verifies it
-// contains requiredEntry.
-func downloadDevicekitZip(ctx context.Context, sourceURL, dir, requiredEntry string) (string, error) {
+// downloadDevicekitZip fetches one URL into a temporary file and verifies its
+// size, SHA-256 and runner entry before returning it.
+func downloadDevicekitZip(ctx context.Context, sourceURL, dir string, asset devicekitAsset) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return "", err
@@ -141,22 +176,39 @@ func downloadDevicekitZip(ctx context.Context, sourceURL, dir, requiredEntry str
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("returned %s", resp.Status)
 	}
+	if resp.ContentLength > asset.Size {
+		return "", fmt.Errorf("archive is %d bytes, want at most %d", resp.ContentLength, asset.Size)
+	}
 
 	file, err := os.CreateTemp(dir, ".devicekit-*")
 	if err != nil {
 		return "", fmt.Errorf("create download: %w", err)
 	}
 	path := file.Name()
-	if _, err := io.Copy(file, resp.Body); err != nil {
+	hasher := sha256.New()
+	// Read one byte past the pinned size so an endless response cannot fill the
+	// disk before the checksum is checked.
+	written, err := io.Copy(io.MultiWriter(file, hasher), io.LimitReader(resp.Body, asset.Size+1))
+	if err != nil {
 		file.Close()
 		os.Remove(path)
 		return "", fmt.Errorf("write download: %w", err)
+	}
+	if written > asset.Size {
+		file.Close()
+		os.Remove(path)
+		return "", fmt.Errorf("archive exceeds the pinned size of %d bytes", asset.Size)
 	}
 	if err := file.Close(); err != nil {
 		os.Remove(path)
 		return "", fmt.Errorf("write download: %w", err)
 	}
-	if err := checkZipEntry(path, requiredEntry); err != nil {
+	digest := hex.EncodeToString(hasher.Sum(nil))
+	if !strings.EqualFold(digest, asset.SHA256) {
+		os.Remove(path)
+		return "", fmt.Errorf("archive SHA-256 is %s, want %s", digest, asset.SHA256)
+	}
+	if err := checkZipEntry(path, asset.Name+"/Info.plist"); err != nil {
 		os.Remove(path)
 		return "", err
 	}

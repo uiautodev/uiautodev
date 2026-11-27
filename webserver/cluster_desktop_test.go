@@ -25,6 +25,7 @@ func TestEveryNodeExposesClusterAPI(t *testing.T) {
 		Audience:          "desktop",
 	})
 	t.Cleanup(func() {
+		SetAudience(AudienceServer)
 		if master := getActiveClusterMaster(); master != nil {
 			master.Close()
 		}

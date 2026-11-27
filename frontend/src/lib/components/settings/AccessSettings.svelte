@@ -9,10 +9,12 @@
   import { Network, Save, ShieldCheck } from "lucide-svelte";
   import { t } from "svelte-i18n";
   import { getAccessConfig, setAccessConfig } from "$lib/api/api.js";
+  import { getServerConfig } from "$lib/compat";
   import {
     CONFLICT_POLICY_LIST,
     IDLE_TIMEOUT_LIST,
     type AccessConfig,
+    type Audience,
     type ConflictPolicy,
     type IdleTimeout,
   } from "$lib/api/schemas.js";
@@ -23,6 +25,7 @@
   }>();
 
   let config = $state<AccessConfig | null>(null);
+  let audience = $state<Audience | undefined>();
   let configFile = $state("");
   let proxiesText = $state("");
   let loading = $state(true);
@@ -37,6 +40,10 @@
   const identityWarning = $derived(
     !!config && config.auth.require_identity && config.auth.trusted_proxies.length === 0,
   );
+
+  // The desktop app is a single-user client without device occupancy, so the
+  // presence settings only apply to the standalone server.
+  const isDesktop = $derived(audience === "desktop");
 
   async function load() {
     if (!token) return;
@@ -87,6 +94,11 @@
   }
 
   onMount(load);
+  onMount(() => {
+    getServerConfig()
+      .then((cfg) => (audience = cfg.audience))
+      .catch((e) => console.error("failed to load server config", e));
+  });
 </script>
 
 <Card.Root>
@@ -137,69 +149,73 @@
           <p class="mt-1.5 text-xs text-muted-foreground">{$t("access.signoutUrlHint")}</p>
         </div>
         {#if identityWarning}
-          <p class="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          <p
+            class="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
             {$t("access.requireIdentityWarning")}
           </p>
         {/if}
       </section>
 
-      <section class="space-y-3 border-t border-border pt-4">
-        <h3 class="text-sm font-semibold text-foreground">{$t("access.presenceSection")}</h3>
-        <div class="flex items-center justify-between gap-4">
-          <div>
-            <p class="text-sm font-medium text-foreground">{$t("access.presenceEnabled")}</p>
-            <p class="text-xs text-muted-foreground">{$t("access.presenceEnabledHint")}</p>
+      {#if !isDesktop}
+        <section class="space-y-3 border-t border-border pt-4">
+          <h3 class="text-sm font-semibold text-foreground">{$t("access.presenceSection")}</h3>
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <p class="text-sm font-medium text-foreground">{$t("access.presenceEnabled")}</p>
+              <p class="text-xs text-muted-foreground">{$t("access.presenceEnabledHint")}</p>
+            </div>
+            <Switch bind:checked={config.presence.enabled} />
           </div>
-          <Switch bind:checked={config.presence.enabled} />
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p class="mb-1 block text-sm font-medium text-foreground">{$t("access.idleTimeout")}</p>
+              <Select.Root
+                type="single"
+                value={config.presence.idle_timeout}
+                onValueChange={(value) => (config!.presence.idle_timeout = value as IdleTimeout)}>
+                <Select.Trigger class="w-full">
+                  {$t(`access.idle.${config.presence.idle_timeout}`)}
+                </Select.Trigger>
+                <Select.Content>
+                  {#each IDLE_TIMEOUT_LIST as value (value)}
+                    <Select.Item {value}>{$t(`access.idle.${value}`)}</Select.Item>
+                  {/each}
+                </Select.Content>
+              </Select.Root>
+            </div>
+            <div>
+              <p class="mb-1 block text-sm font-medium text-foreground">{$t("access.conflictPolicy")}</p>
+              <Select.Root
+                type="single"
+                value={config.presence.conflict_policy}
+                onValueChange={(value) => (config!.presence.conflict_policy = value as ConflictPolicy)}>
+                <Select.Trigger class="w-full">
+                  {$t(`access.policy.${config.presence.conflict_policy}`)}
+                </Select.Trigger>
+                <Select.Content>
+                  {#each CONFLICT_POLICY_LIST as value (value)}
+                    <Select.Item {value}>{$t(`access.policy.${value}`)}</Select.Item>
+                  {/each}
+                </Select.Content>
+              </Select.Root>
+            </div>
+          </div>
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <p class="text-sm font-medium text-foreground">{$t("access.allowObservers")}</p>
+              <p class="text-xs text-muted-foreground">{$t("access.allowObserversHint")}</p>
+            </div>
+            <Switch bind:checked={config.presence.allow_observers} />
+          </div>
+        </section>
+      {/if}
+
+      {#if configFile}
+        <div class="space-y-1 text-xs text-muted-foreground">
+          <p>{$t("access.configFile")}</p>
+          <code class="block rounded bg-muted px-2 py-1 font-mono text-[11px] break-all">{configFile}</code>
         </div>
-        <div class="grid gap-3 sm:grid-cols-2">
-          <div>
-            <p class="mb-1 block text-sm font-medium text-foreground">{$t("access.idleTimeout")}</p>
-            <Select.Root
-              type="single"
-              value={config.presence.idle_timeout}
-              onValueChange={(value) => (config!.presence.idle_timeout = value as IdleTimeout)}>
-              <Select.Trigger class="w-full">
-                {$t(`access.idle.${config.presence.idle_timeout}`)}
-              </Select.Trigger>
-              <Select.Content>
-                {#each IDLE_TIMEOUT_LIST as value (value)}
-                  <Select.Item value={value}>{$t(`access.idle.${value}`)}</Select.Item>
-                {/each}
-              </Select.Content>
-            </Select.Root>
-          </div>
-          <div>
-            <p class="mb-1 block text-sm font-medium text-foreground">{$t("access.conflictPolicy")}</p>
-            <Select.Root
-              type="single"
-              value={config.presence.conflict_policy}
-              onValueChange={(value) => (config!.presence.conflict_policy = value as ConflictPolicy)}>
-              <Select.Trigger class="w-full">
-                {$t(`access.policy.${config.presence.conflict_policy}`)}
-              </Select.Trigger>
-              <Select.Content>
-                {#each CONFLICT_POLICY_LIST as value (value)}
-                  <Select.Item value={value}>{$t(`access.policy.${value}`)}</Select.Item>
-                {/each}
-              </Select.Content>
-            </Select.Root>
-          </div>
-        </div>
-        <div class="flex items-center justify-between gap-4">
-          <div>
-            <p class="text-sm font-medium text-foreground">{$t("access.allowObservers")}</p>
-            <p class="text-xs text-muted-foreground">{$t("access.allowObserversHint")}</p>
-          </div>
-          <Switch bind:checked={config.presence.allow_observers} />
-        </div>
-        {#if configFile}
-          <div class="space-y-1 text-xs text-muted-foreground">
-            <p>{$t("access.configFile")}</p>
-            <code class="block rounded bg-muted px-2 py-1 font-mono text-[11px] break-all">{configFile}</code>
-          </div>
-        {/if}
-      </section>
+      {/if}
 
       {#if error}
         <p class="text-sm text-destructive">{error}</p>

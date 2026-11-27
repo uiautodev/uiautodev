@@ -109,6 +109,22 @@
     }
   }
 
+  // The desktop app runs without device occupancy, so there is no session to
+  // acquire and no heartbeat to renew: show the device right away. Observing
+  // another user's session does not exist there either, so the requested mode
+  // is always control.
+  async function enterWithIdentity() {
+    const me = await identityStore.ensure();
+    if (me?.presence_enabled === false) {
+      mode = "control";
+      blocked = null;
+      ready = true;
+      emit(null);
+      return;
+    }
+    await enter(initialMode);
+  }
+
   function startHeartbeat() {
     stopHeartbeat();
     heartbeat = setInterval(() => {
@@ -126,8 +142,7 @@
   }
 
   onMount(() => {
-    void identityStore.ensure();
-    void enter(initialMode);
+    void enterWithIdentity();
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pagehide", onPageHide);
   });

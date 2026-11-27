@@ -8,6 +8,8 @@ import (
 
 type nativeLabels struct {
 	File         string
+	View         string
+	DevTools     string
 	OpenLog      string
 	OpenPlugin   string
 	OpenConfig   string
@@ -31,6 +33,8 @@ func nativeLabelsFor(locale string) nativeLabels {
 	if strings.HasPrefix(strings.ToLower(locale), "en") {
 		return nativeLabels{
 			File:         "File",
+			View:         "View",
+			DevTools:     "Developer Tools",
 			OpenLog:      "Open Log Directory",
 			OpenPlugin:   "Open Plugin Directory",
 			OpenConfig:   "Open Config Directory",
@@ -48,6 +52,8 @@ func nativeLabelsFor(locale string) nativeLabels {
 	}
 	return nativeLabels{
 		File:         "文件",
+		View:         "视图",
+		DevTools:     "开发者工具",
 		OpenLog:      "打开日志目录",
 		OpenPlugin:   "打开插件目录",
 		OpenConfig:   "打开配置目录",

@@ -314,6 +314,28 @@ func deviceWindowSizeHandler(c echo.Context) error {
 	}, "  ")
 }
 
+// Audience is the deployment mode of the process. The desktop app is a trusted
+// single-user client, while the standalone server can be shared by many users.
+type Audience string
+
+const (
+	AudienceDesktop Audience = "desktop"
+	AudienceServer  Audience = "server"
+)
+
+// AudienceList lists every supported audience.
+var AudienceList = []Audience{AudienceDesktop, AudienceServer}
+
+// Valid reports whether the audience is one of the supported values.
+func (a Audience) Valid() bool {
+	for _, audience := range AudienceList {
+		if a == audience {
+			return true
+		}
+	}
+	return false
+}
+
 // update global.d.ts if adding new fields here
 type ServerConfig struct {
 	DisableDeviceListing bool          `json:"disable_device_listing"`
@@ -325,7 +347,7 @@ type ServerConfig struct {
 	JWTSecretBytes       []byte        `json:"-"` // Derived secret, populated during server creation
 	CORS                 bool          `json:"-"` // Whether to enable CORS for cross-origin requests
 	DisablePluginAuth    bool          `json:"-"` // Whether plugin management requires no password (trusted desktop env)
-	Audience             string        `json:"-"` // App audience: "desktop" (wails) or "server" (standalone)
+	Audience             Audience      `json:"audience"` // App audience: desktop (wails) or server (standalone)
 	NodeID               string        `json:"-"` // Cluster node identity override (tests); empty means persisted config value
 	APIToken             string        `json:"-"` // Per-process token that guards cluster management routes (desktop, CORS enabled)
 	ClusterStore         cluster.Store `json:"-"` // Cluster slave store override (tests); nil uses the config file
@@ -340,7 +362,7 @@ type ServerConfig struct {
 var defaultServerConfig = ServerConfig{
 	DisableDeviceListing: false,
 	Version:              version.Version,
-	Audience:             "server",
+	Audience:             AudienceServer,
 }
 
 func configHandler(config ServerConfig) echo.HandlerFunc {
@@ -405,8 +427,9 @@ func CreateEchoServerWithConfig(config ServerConfig) *echo.Echo {
 	config.BuildTime = version.BuildTime
 	config.GitCommit = version.GitCommit
 	if config.Audience == "" {
-		config.Audience = "server"
+		config.Audience = AudienceServer
 	}
+	SetAudience(config.Audience)
 
 	configureUpdateClient(config)
 	if config.StartIOSWDAWatcher {

@@ -92,6 +92,8 @@ func createMenu(app *App) *application.Menu {
 		appMenu.AddRole(application.EditMenu)
 	}
 
+	addDevToolsMenu(appMenu, labels, app)
+
 	return appMenu
 }
 

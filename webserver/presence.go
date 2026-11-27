@@ -828,9 +828,18 @@ type presenceBatchRequest struct {
 	Devices map[string]presencePutRequest `json:"devices"`
 }
 
+// presenceEnabled reports whether this process tracks device occupancy. The
+// desktop app is a trusted single-user client and always runs without it.
+func presenceEnabled() bool {
+	return getAccessConfig().Presence.Enabled
+}
+
 // presencePutHandler handles PUT /api/v1/devices/:device_id/presence.
 func presencePutHandler(c echo.Context) error {
 	deviceID := c.Param("device_id")
+	if !presenceEnabled() {
+		return c.JSONPretty(http.StatusOK, APIResponse{Code: 0, Message: "ok", Data: freeOccupancy(deviceID)}, "  ")
+	}
 	identity, ok := identityFrom(c)
 	if !ok {
 		return c.JSONPretty(http.StatusInternalServerError, APIResponse{Code: 500, Message: "identity unavailable"}, "  ")
@@ -855,8 +864,10 @@ func presencePutHandler(c echo.Context) error {
 // presenceDeleteHandler handles DELETE /api/v1/devices/:device_id/presence.
 func presenceDeleteHandler(c echo.Context) error {
 	deviceID := c.Param("device_id")
-	if identity, ok := identityFrom(c); ok {
-		presenceManagerInstance.Release(deviceID, identity.SessionID)
+	if presenceEnabled() {
+		if identity, ok := identityFrom(c); ok {
+			presenceManagerInstance.Release(deviceID, identity.SessionID)
+		}
 	}
 	return c.JSONPretty(http.StatusOK, APIResponse{Code: 0, Message: "ok"}, "  ")
 }
@@ -867,10 +878,14 @@ func presenceSnapshotHandler(c echo.Context) error {
 	if !ok {
 		return c.JSONPretty(http.StatusInternalServerError, APIResponse{Code: 500, Message: "identity unavailable"}, "  ")
 	}
+	devices := map[string]Occupancy{}
+	if presenceEnabled() {
+		devices = presenceManagerInstance.Snapshot(&identity.Identity, identity.SessionID)
+	}
 	return c.JSONPretty(http.StatusOK, APIResponse{
 		Code:    0,
 		Message: "ok",
-		Data:    map[string]any{"devices": presenceManagerInstance.Snapshot(&identity.Identity, identity.SessionID)},
+		Data:    map[string]any{"devices": devices},
 	}, "  ")
 }
 
@@ -884,6 +899,17 @@ func presenceBatchPutHandler(c echo.Context) error {
 	var req presenceBatchRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSONPretty(http.StatusBadRequest, APIResponse{Code: 400, Message: "invalid request body: " + err.Error()}, "  ")
+	}
+	if !presenceEnabled() {
+		result := make(map[string]Occupancy, len(req.Devices))
+		for deviceID := range req.Devices {
+			result[deviceID] = freeOccupancy(deviceID)
+		}
+		return c.JSONPretty(http.StatusOK, APIResponse{
+			Code:    0,
+			Message: "ok",
+			Data:    map[string]any{"devices": result},
+		}, "  ")
 	}
 	result := make(map[string]Occupancy, len(req.Devices))
 	for deviceID, entry := range req.Devices {

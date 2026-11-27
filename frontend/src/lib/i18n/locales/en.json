@@ -441,7 +441,7 @@
       "free": "Free",
       "mine": "In use by me",
       "shared": "Shared",
-      "viewing": "Observing",
+      "viewing": "Read-only",
       "busy": "In use",
       "preempted": "Preempted"
     },

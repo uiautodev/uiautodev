@@ -5,13 +5,29 @@
 API: https://uiautodev.apifox.cn/
 
 ```sh
-# 新克隆项目后先安装依赖（Go 模块 + 前端依赖）
-make setup
-
+# 新克隆项目后直接跑即可：make dev 会先补齐 Go 模块、前端依赖、
+# 生成的 version.go / plugin.schema.json 以及 wails bindings（可重复执行）
 make dev
 ```
 
+只想安装依赖、不启动服务时用 `make setup`（内部就是 `make prepare`）。
+bindings 生成优先用已安装的 `wails3`，没有时用 `go run` 按 `go.mod` 里锁定的版本临时执行；
+想常驻一份 CLI 可以 `go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0`。
+
 浏览器访问 http://localhost:5173 （后端 33299，改动 Go 代码后自动重启；可用 `DEV_BACKEND_PORT` / `DEV_FRONTEND_PORT` 覆盖端口）
+
+### 桌面端
+
+桌面端（Wails）与单独部署的 server 共用同一套后端，但有几点差异：
+
+- 桌面端是单用户客户端，**不使用设备占用（presence）**：`Audience=desktop` 时后端强制关闭占用，
+  设置页也不显示占用相关选项，避免 webview 页面、插件 iframe 和 websocket 因 cookie 会话不同而互相判成只读。
+- 菜单「视图 → 开发者工具」（macOS `⌥⌘I`）只在带 `devtools` 标签的构建里出现，
+  正式包已经带该标签（`wails3 build -tags devtools` / `EXTRA_TAGS=devtools`），本地调试同理：
+
+```sh
+wails3 build -tags devtools APP_NAME=uiautodev-desktop
+```
 
 以下需要安装的二进制：
 

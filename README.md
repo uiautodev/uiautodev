@@ -103,7 +103,7 @@ uiautodev-server -addr :8080 -open
 - 观察者可以看画面、截图、UI 树，但不能操作设备
 - 参数在设置页「访问与占用」中修改，也可以手写 `config.json`
 
-完整说明（配置项、权限矩阵、oauth2-proxy 示例）见 [docs/access-and-presence.md](docs/access-and-presence.md)。
+桌面端是单用户客户端，始终关闭设备占用，设置页也不显示占用相关选项；该功能只在单独部署的 server 上生效。完整说明（配置项、权限矩阵、oauth2-proxy 示例）见 [docs/access-and-presence.md](docs/access-and-presence.md)。
 
 ## MCP 认证
 

@@ -114,15 +114,26 @@
   // another user's session does not exist there either, so the requested mode
   // is always control.
   async function enterWithIdentity() {
-    const me = await identityStore.ensure();
-    if (me?.presence_enabled === false) {
-      mode = "control";
-      blocked = null;
+    if (identityStore.loaded && identityStore.me?.presence_enabled === false) {
       ready = true;
       emit(null);
       return;
     }
+    // Start /me and the presence handshake in parallel: /me only decides
+    // whether occupancy applies, so a slow or hanging /me must not keep the
+    // page on the acquiring spinner.
+    const mePromise = identityStore.ensure();
     await enter(initialMode);
+    const me = await mePromise;
+    if (me?.presence_enabled === false) {
+      // The desktop server ignores presence; drop the session state and
+      // heartbeat so the UI never shows or renews an occupancy.
+      stopHeartbeat();
+      mode = "control";
+      blocked = null;
+      ready = true;
+      emit(null);
+    }
   }
 
   function startHeartbeat() {

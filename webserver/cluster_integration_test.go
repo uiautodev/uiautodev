@@ -52,7 +52,7 @@ func TestClusterDeviceAggregation(t *testing.T) {
 
 	e := CreateEchoServerWithConfig(ServerConfig{
 		DisablePluginAuth: true,
-		Audience:          "server",
+		Audience:          AudienceServer,
 	})
 	server := httptest.NewServer(e)
 	defer server.Close()
@@ -186,12 +186,12 @@ func TestClusterDemoDeviceEndToEnd(t *testing.T) {
 
 	slaveEcho := CreateEchoServerWithConfig(ServerConfig{
 		NodeID:            "node-slave",
-		Audience:          "server",
+		Audience:          AudienceServer,
 		DisablePluginAuth: true,
 	})
 	masterEcho := CreateEchoServerWithConfig(ServerConfig{
 		NodeID:            "node-master",
-		Audience:          "server",
+		Audience:          AudienceServer,
 		DisablePluginAuth: true,
 	})
 	server := httptest.NewServer(masterEcho)

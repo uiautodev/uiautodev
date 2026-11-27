@@ -100,10 +100,10 @@ func main() {
 	}
 
 	schema := map[string]any{
-		"$schema":     "https://json-schema.org/draft/2020-12/schema",
-		"title":       "UIAutoDev Plugin Manifest",
-		"type":        "object",
-		"properties":  props,
+		"$schema":    "https://json-schema.org/draft/2020-12/schema",
+		"title":      "UIAutoDev Plugin Manifest",
+		"type":       "object",
+		"properties": props,
 	}
 	if len(required) > 0 {
 		schema["required"] = required

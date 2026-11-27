@@ -22,6 +22,8 @@ bindings 生成优先用已安装的 `wails3`，没有时用 `go run` 按 `go.mo
 
 - 桌面端是单用户客户端，**不使用设备占用（presence）**：`Audience=desktop` 时后端强制关闭占用，
   设置页也不显示占用相关选项，避免 webview 页面、插件 iframe 和 websocket 因 cookie 会话不同而互相判成只读。
+- 进程 audience 只在入口调用 `SetAudience`（`app.go`、`cmd/uiautodev-server/main.go`）；
+  `CreateEchoServerWithConfig` 不再改写它，测试用 `useAudience` 设置并在结束后恢复，避免用例互相污染。
 - 菜单「视图 → 开发者工具」（macOS `⌥⌘I`）只在带 `devtools` 标签的构建里出现，
   正式包已经带该标签（`wails3 build -tags devtools` / `EXTRA_TAGS=devtools`），本地调试同理：
 

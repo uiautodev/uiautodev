@@ -6,6 +6,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/uiautodev/uiautodev/version"
+	"github.com/uiautodev/uiautodev/webserver"
+	"github.com/uiautodev/uiautodev/webserver/cluster"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -16,9 +19,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"github.com/uiautodev/uiautodev/version"
-	"github.com/uiautodev/uiautodev/webserver"
-	"github.com/uiautodev/uiautodev/webserver/cluster"
 
 	"github.com/MatusOllah/slogcolor"
 	"github.com/labstack/echo/v4"
@@ -201,12 +201,13 @@ func main() {
 		ProxyLogPath:         *proxyLogPath,
 		AuthUsers:            []string(authUsers),
 		CORS:                 *cors,
-		Audience:             "server",
+		Audience:             webserver.AudienceServer,
 		TLSAddr:              *tlsAddr,
 		TLSCertFile:          *tlsCertFile,
 		TLSKeyFile:           *tlsKeyFile,
 		StartIOSWDAWatcher:   true,
 	}
+	webserver.SetAudience(cfg.Audience)
 
 	// -config-dir and -plugin-dir isolate state between multiple servers.
 	// -config-dir is applied first so the default plugin dir follows it.

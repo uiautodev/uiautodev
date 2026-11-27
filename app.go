@@ -5,13 +5,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"github.com/uiautodev/uiautodev/internal/update"
+	"github.com/uiautodev/uiautodev/version"
+	"github.com/uiautodev/uiautodev/webserver"
 	"log/slog"
 	"os"
 	"strings"
 	"time"
-	"github.com/uiautodev/uiautodev/internal/update"
-	"github.com/uiautodev/uiautodev/version"
-	"github.com/uiautodev/uiautodev/webserver"
 
 	"github.com/labstack/echo/v4"
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -57,10 +57,11 @@ func (a *App) ServiceStartup(_ context.Context, _ application.ServiceOptions) er
 	update.CleanupOldExecutables()
 	// The wails frontend is served by the wails AssetServer (a different origin),
 	// so CORS must be enabled; the trusted desktop environment needs no password.
+	webserver.SetAudience(webserver.AudienceDesktop)
 	a.echoServer = webserver.CreateEchoServerWithConfig(webserver.ServerConfig{
 		CORS:               true,
 		DisablePluginAuth:  true,
-		Audience:           "desktop",
+		Audience:           webserver.AudienceDesktop,
 		APIToken:           a.apiToken,
 		StartIOSWDAWatcher: true,
 		Quit: func() {
@@ -102,7 +103,7 @@ func (a *App) shutdown() {
 func (a *App) GetServerConfig() webserver.ServerConfig {
 	config := webserver.ServerConfig{}
 	config.DisableDeviceListing = false
-	config.Audience = "desktop"
+	config.Audience = webserver.AudienceDesktop
 	config.Version = version.Version
 	config.BuildTime = version.BuildTime
 	config.GitCommit = version.GitCommit

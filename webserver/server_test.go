@@ -3,12 +3,12 @@ package webserver_test
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/uiautodev/uiautodev/webserver"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
-	"github.com/uiautodev/uiautodev/webserver"
 )
 
 // freeAddr returns a loopback address with an OS-assigned free port so tests do

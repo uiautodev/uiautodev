@@ -65,7 +65,7 @@ func TestClusterNestedDeviceAggregation(t *testing.T) {
 	e := CreateEchoServerWithConfig(ServerConfig{
 		NodeID:            "node-a",
 		DisablePluginAuth: true,
-		Audience:          "server",
+		Audience:          AudienceServer,
 	})
 	t.Cleanup(func() {
 		if master := getActiveClusterMaster(); master != nil {
@@ -264,7 +264,7 @@ func TestCascadeAcrossTwoHops(t *testing.T) {
 		NodeID:            "node-a",
 		ClusterStore:      aStore,
 		DisablePluginAuth: true,
-		Audience:          "server",
+		Audience:          AudienceServer,
 	})
 	t.Cleanup(func() {
 		if master := getActiveClusterMaster(); master != nil {

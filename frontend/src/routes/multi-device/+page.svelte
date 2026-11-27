@@ -41,6 +41,7 @@
   }
 
   async function refreshPresence() {
+    if (identityStore.me?.presence_enabled === false) return;
     const known = new Set(devices.map((device) => device.id));
     const ids = new Set(Array.from(deviceIds).filter((id) => known.has(id)));
     if (activatedDeviceId && known.has(activatedDeviceId)) ids.add(activatedDeviceId);
@@ -56,6 +57,7 @@
   }
 
   async function observe(deviceId: string) {
+    if (identityStore.me?.presence_enabled === false) return;
     observedIds[deviceId] = true;
     try {
       const result = await putPresenceBatch({ [deviceId]: { mode: "view" } });
@@ -96,7 +98,7 @@
   });
 
   onMount(async () => {
-    void identityStore.ensure();
+    await identityStore.ensure();
     devices = await fetchDevices();
     await refreshPresence();
     timers.push(

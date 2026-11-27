@@ -35,7 +35,7 @@ func configureUpdateClient(config ServerConfig) {
 		ManifestURL: updateManifestURL,
 		BaseURL:     updateBaseURL,
 		DataDir:     filepath.Join(GetUserConfigDir(), "updates"),
-		Desktop:     config.Audience == "desktop",
+		Desktop:     config.Audience == AudienceDesktop,
 		Quit:        config.Quit,
 	})
 }

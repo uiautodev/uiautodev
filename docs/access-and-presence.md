@@ -30,6 +30,8 @@
 
 ## 配置
 
+桌面端（Wails）是单用户客户端，始终关闭设备占用，设置页也不显示占用相关选项；下面的占用配置只对单独部署的 server 生效，桌面端会保留但忽略这些值。
+
 设置页「访问与占用」可直接修改，也可以提前手写 `config.json`（手工修改后需要重启）：
 
 ```json
@@ -55,7 +57,7 @@
 | `trusted_proxies` | `[]` | 可信代理 IP 或 CIDR，每项一个 |
 | `require_identity` | `false` | 无身份时拒绝 API / 设备流请求 |
 | `signout_url` | `""` | 非空时导航头像菜单显示「退出登录」 |
-| `presence.enabled` | `true` | 是否启用设备占用管理 |
+| `presence.enabled` | `true` | 是否启用设备占用管理（桌面端始终视为 `false`） |
 | `presence.conflict_policy` | `preempt` | `preempt` 允许抢占，`exclusive` 只能等待 |
 | `presence.idle_timeout` | `10m` | 空闲释放时间：`1m` / `5m` / `10m` / `30m` / `1h` |
 | `presence.allow_observers` | `true` | 是否允许其他用户以只读方式加入 |
@@ -128,6 +130,8 @@ MCP 使用 `mcp_token` 认证，请求身份固定为 `mcp:admin`（显示名 `M
 | GET/PUT | `/api/v1/access/config` | 读取/保存配置（管理密码保护） |
 | GET/PUT | `/api/v1/presence` | 全量占用快照 / 批量续期 |
 | PUT/DELETE | `/api/v1/devices/:id/presence` | 单设备续期 / 释放 |
+
+`GET /api/v1/access/config` 返回的是存储值（包括 `presence.enabled`），不代表当前进程实际生效的配置；桌面端会忽略它，并以 `GET /api/v1/me` 的 `presence_enabled=false` 为准。桌面端的 presence 写入接口都是 no-op：单设备和批量续期返回 `free`，快照为空，`DELETE` 不会释放会话。
 
 | HTTP | 场景 |
 |---|---|

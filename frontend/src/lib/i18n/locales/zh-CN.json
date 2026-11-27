@@ -445,7 +445,7 @@
       "free": "空闲",
       "mine": "我在使用",
       "shared": "共享中",
-      "viewing": "观察中",
+      "viewing": "只读",
       "busy": "使用中",
       "preempted": "已被抢占"
     },

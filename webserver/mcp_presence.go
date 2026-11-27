@@ -77,9 +77,9 @@ func (g *mcpToolGate) middleware() server.ToolHandlerMiddleware {
 	}
 }
 
-// mcpFreeOccupancy is the no-op occupancy used when presence management is
+// freeOccupancy is the no-op occupancy reported when presence management is
 // disabled or the caller has no identity.
-func mcpFreeOccupancy(deviceID string) Occupancy {
+func freeOccupancy(deviceID string) Occupancy {
 	cfg := getAccessConfig().Presence
 	return Occupancy{
 		DeviceID:   deviceID,
@@ -95,11 +95,11 @@ func mcpFreeOccupancy(deviceID string) Occupancy {
 func mcpEnsureDeviceSession(ctx context.Context, deviceID string, control bool) (Occupancy, *PresenceError) {
 	cfg := getAccessConfig().Presence
 	if !cfg.Enabled {
-		return mcpFreeOccupancy(deviceID), nil
+		return freeOccupancy(deviceID), nil
 	}
 	identity := mcpIdentityFromContext(ctx)
 	if identity == nil {
-		return mcpFreeOccupancy(deviceID), nil
+		return freeOccupancy(deviceID), nil
 	}
 
 	if notice := presenceManagerInstance.Eviction(deviceID, identity.SessionID); notice != nil {
@@ -162,7 +162,7 @@ func mcpAcquireDeviceHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp
 
 	identity := mcpIdentityFromContext(ctx)
 	if identity == nil || !getAccessConfig().Presence.Enabled {
-		return mcp.NewToolResultJSON(mcpFreeOccupancy(deviceID))
+		return mcp.NewToolResultJSON(freeOccupancy(deviceID))
 	}
 
 	occ, perr := presenceManagerInstance.Acquire(deviceID, *identity, mode, takeover, mcpRemote, mcpUA)

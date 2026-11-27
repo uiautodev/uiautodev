@@ -257,11 +257,15 @@ export interface DeviceClipboard {
     image?: DeviceClipboardImage;
 }
 
+export const AUDIENCE_LIST = ["desktop", "server"] as const;
+export type Audience = (typeof AUDIENCE_LIST)[number];
+
 export type ServerConfig = {
     disable_device_listing?: boolean;
     version: string;
     git_commit: string;
     build_time: string;
+    audience?: Audience;
 }
 
 // --- Identity and presence ---

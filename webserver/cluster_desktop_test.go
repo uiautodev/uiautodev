@@ -19,10 +19,11 @@ func TestEveryNodeExposesClusterAPI(t *testing.T) {
 	SetConfigFile(filepath.Join(t.TempDir(), "config.json"))
 	defer SetConfigFile("")
 	defer func() { managementAuthDisabled = false }()
+	useAudience(t, AudienceDesktop)
 
 	e := CreateEchoServerWithConfig(ServerConfig{
 		DisablePluginAuth: true,
-		Audience:          "desktop",
+		Audience:          AudienceDesktop,
 	})
 	t.Cleanup(func() {
 		if master := getActiveClusterMaster(); master != nil {
@@ -50,10 +51,11 @@ func TestDesktopClusterRoutesRequireAPIToken(t *testing.T) {
 	SetConfigFile(filepath.Join(t.TempDir(), "config.json"))
 	defer SetConfigFile("")
 	defer func() { managementAuthDisabled = false }()
+	useAudience(t, AudienceDesktop)
 
 	e := CreateEchoServerWithConfig(ServerConfig{
 		DisablePluginAuth: true,
-		Audience:          "desktop",
+		Audience:          AudienceDesktop,
 		APIToken:          "desktop-secret",
 	})
 	t.Cleanup(func() {
@@ -84,11 +86,12 @@ func TestCORSPreflightAllowsPatch(t *testing.T) {
 	SetConfigFile(filepath.Join(t.TempDir(), "config.json"))
 	defer SetConfigFile("")
 	defer func() { managementAuthDisabled = false }()
+	useAudience(t, AudienceDesktop)
 
 	e := CreateEchoServerWithConfig(ServerConfig{
 		CORS:              true,
 		DisablePluginAuth: true,
-		Audience:          "desktop",
+		Audience:          AudienceDesktop,
 		ClusterStore:      newMemClusterStore(),
 	})
 	t.Cleanup(func() {

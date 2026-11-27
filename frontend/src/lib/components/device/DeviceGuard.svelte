@@ -109,6 +109,33 @@
     }
   }
 
+  // The desktop app runs without device occupancy, so there is no session to
+  // acquire and no heartbeat to renew: show the device right away. Observing
+  // another user's session does not exist there either, so the requested mode
+  // is always control.
+  async function enterWithIdentity() {
+    if (identityStore.loaded && identityStore.me?.presence_enabled === false) {
+      ready = true;
+      emit(null);
+      return;
+    }
+    // Start /me and the presence handshake in parallel: /me only decides
+    // whether occupancy applies, so a slow or hanging /me must not keep the
+    // page on the acquiring spinner.
+    const mePromise = identityStore.ensure();
+    await enter(initialMode);
+    const me = await mePromise;
+    if (me?.presence_enabled === false) {
+      // The desktop server ignores presence; drop the session state and
+      // heartbeat so the UI never shows or renews an occupancy.
+      stopHeartbeat();
+      mode = "control";
+      blocked = null;
+      ready = true;
+      emit(null);
+    }
+  }
+
   function startHeartbeat() {
     stopHeartbeat();
     heartbeat = setInterval(() => {
@@ -126,8 +153,7 @@
   }
 
   onMount(() => {
-    void identityStore.ensure();
-    void enter(initialMode);
+    void enterWithIdentity();
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pagehide", onPageHide);
   });

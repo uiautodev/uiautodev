@@ -668,9 +668,10 @@
 
 <svelte:window onkeydown={syncCtrl} onkeyup={syncCtrl} onblur={handleWindowBlur} />
 
-{#snippet toolToolbar()}
-  <div class="flex flex-col items-center w-[40px]">
-    <ButtonGroup.Root orientation="vertical">
+{#snippet toolToolbar(orientation: "vertical" | "horizontal")}
+  {@const horizontal = orientation === "horizontal"}
+  <div class={horizontal ? "w-full shrink-0" : "flex w-[40px] flex-col items-center"}>
+    <ButtonGroup.Root {orientation} class={horizontal ? "w-full flex-wrap justify-start" : ""}>
       {#each extraKeyButtons as { keyCode, tooltip, icon: Icon } (keyCode)}
         {#if supportedKeys.includes(keyCode)}
           <ButtonTooltip disabled={!controlsEnabled} size="sm" {tooltip} onclick={() => inputKeyEvent(keyCode)}>
@@ -696,7 +697,7 @@
           <Cpu />
         </ButtonTooltip>
       {/if}
-      <Separator />
+      <Separator orientation={horizontal ? "vertical" : "horizontal"} class={horizontal ? "self-stretch" : ""} />
       <ButtonTooltip
         size="sm"
         tooltip={$t("screen.toolbar.crop")}
@@ -704,7 +705,7 @@
         onclick={() => (cropDialogOpen = true)}>
         <Crop />
       </ButtonTooltip>
-      <Separator />
+      <Separator orientation={horizontal ? "vertical" : "horizontal"} class={horizontal ? "self-stretch" : ""} />
       <ButtonTooltip
         disabled={deviceStore.dumping}
         size="sm"
@@ -720,7 +721,7 @@
       <ButtonTooltip size="sm" tooltip={$t("screen.toolbar.clearHierarchy")} onclick={clearHierarchy}>
         <BrushCleaning />
       </ButtonTooltip>
-      <Separator />
+      <Separator orientation={horizontal ? "vertical" : "horizontal"} class={horizontal ? "self-stretch" : ""} />
       <ButtonCopyScreenshot {snapshot} />
       <ButtonRecord {screenHandler} />
     </ButtonGroup.Root>
@@ -759,9 +760,11 @@
        wide empty strip between a portrait screen and the right-hand toolbar.
        Pinning the wrapper to the video aspect ratio makes it hug the canvas. -->
   <div
-    class="relative flex max-h-full max-w-full min-h-0 min-w-0"
-    style:max-width={isTiny || !showRightBar ? "100%" : "calc(100% - 40px)"}
-    style:aspect-ratio={isPortrait ? `${screenWidth} / ${screenHeight}` : undefined}>
+    class="relative flex max-h-full max-w-full min-h-0 min-w-0 items-center justify-center {isPortrait
+      ? 'h-full'
+      : 'w-full'}"
+    style:max-width={isPortrait && !isTiny && showRightBar ? "calc(100% - 40px)" : "100%"}
+    style:aspect-ratio={screenWidth && screenHeight ? `${screenWidth} / ${screenHeight}` : undefined}>
     {#key wsURL}
       <canvas
         class="max-h-full max-w-full object-contain border rounded-md border-gray-300 dark:border-slate-700 transition-opacity"
@@ -1011,12 +1014,30 @@
       </div>
     {/if}
   </header>
-  <main class="flex flex-col flex-1 justify-center items-center bg-gray-200 dark:bg-slate-900 overflow-hidden">
-    <div class="flex flex-col w-full max-h-full min-h-0">
-      <div class="flex flex-row w-full justify-center relative min-h-0">
-        {@render canvasWrapper()}
-        {#if !isTiny && showRightBar}{@render toolToolbar()}{/if}
-      </div>
+  <main class="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden bg-gray-200 dark:bg-slate-900">
+    <!-- The height chain stays definite so WebKit (the macOS desktop webview)
+         constrains the canvas the same way Chromium does; with an auto-height
+         chain WebKit ignored the video's max-height and left a large empty area
+         above and below a portrait screen. The row is not centered vertically
+         so the side toolbar stays top-aligned; only the canvas column fills
+         the row height. -->
+    <div class="flex h-full min-h-0 w-full flex-col">
+      {#if isPortrait}
+        <div class="relative flex min-h-0 w-full flex-1 flex-row justify-center">
+          {@render canvasWrapper()}
+          {#if !isTiny && showRightBar}{@render toolToolbar("vertical")}{/if}
+        </div>
+      {:else}
+        <!-- A landscape stream is wide and short, so the side toolbar would eat
+             half the width. Stack it above the screen instead, left-aligned
+             with the canvas edge, and center the pair vertically. -->
+        <div class="relative flex min-h-0 w-full flex-1 justify-center">
+          <div class="flex h-full max-h-full min-h-0 w-full flex-col items-start justify-center">
+            {#if !isTiny && showRightBar}{@render toolToolbar("horizontal")}{/if}
+            {@render canvasWrapper()}
+          </div>
+        </div>
+      {/if}
       {#if !isTiny && !navInHeader}
         {@render navToolbar()}
       {/if}

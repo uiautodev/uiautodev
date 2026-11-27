@@ -295,15 +295,45 @@ func compileTrustedProxies(values []string) []*net.IPNet {
 
 var accessConfigCache atomic.Pointer[AccessConfig]
 
+// processAudience is the audience of the running process. The desktop app is a
+// single-user client and does not use device presence, so the effective access
+// configuration depends on it.
+var processAudience atomic.Value
+
+// SetAudience records the audience of the running process.
+func SetAudience(audience Audience) {
+	processAudience.Store(audience)
+}
+
+// currentAudience returns the audience of the running process, defaulting to
+// the standalone server.
+func currentAudience() Audience {
+	if audience, ok := processAudience.Load().(Audience); ok && audience.Valid() {
+		return audience
+	}
+	return AudienceServer
+}
+
 // ResetAccessConfigCache drops the cached configuration so the next read loads
 // it from disk again. It is used when tests switch the config file.
 func ResetAccessConfigCache() {
 	accessConfigCache.Store(nil)
 }
 
-// getAccessConfig returns the effective configuration, loading and caching it
-// from disk on first use.
+// getAccessConfig returns the effective configuration. The desktop app has no
+// occupancy concept, so presence is always disabled there even when the stored
+// configuration enables it (that value still applies to the standalone server).
 func getAccessConfig() AccessConfig {
+	cfg := storedAccessConfig()
+	if currentAudience() == AudienceDesktop {
+		cfg.Presence.Enabled = false
+	}
+	return cfg
+}
+
+// storedAccessConfig returns the configuration as persisted, loading and
+// caching it from disk on first use.
+func storedAccessConfig() AccessConfig {
 	if cached := accessConfigCache.Load(); cached != nil {
 		return *cached
 	}
@@ -346,13 +376,16 @@ func setAccessConfig(cfg AccessConfig) (AccessConfig, error) {
 	return normalized, nil
 }
 
-// accessConfigGetHandler handles GET /api/v1/access/config.
+// accessConfigGetHandler handles GET /api/v1/access/config. It reports the
+// stored configuration, not the effective one, so the settings page shows (and
+// keeps) the values that apply to the standalone server even when the desktop
+// app ignores presence.
 func accessConfigGetHandler(c echo.Context) error {
 	return c.JSONPretty(http.StatusOK, APIResponse{
 		Code:    0,
 		Message: "ok",
 		Data: map[string]any{
-			"config":      getAccessConfig(),
+			"config":      storedAccessConfig(),
 			"config_file": getConfigFile(),
 		},
 	}, "  ")

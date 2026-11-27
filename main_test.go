@@ -11,6 +11,13 @@ func TestNativeLabelsSettings(t *testing.T) {
 	assert.Equal(t, "设置...", nativeLabelsFor("zh-CN").Settings)
 }
 
+func TestNativeLabelsDevTools(t *testing.T) {
+	assert.Equal(t, "View", nativeLabelsFor("en-US").View)
+	assert.Equal(t, "视图", nativeLabelsFor("zh-CN").View)
+	assert.Equal(t, "Developer Tools", nativeLabelsFor("en-US").DevTools)
+	assert.Equal(t, "开发者工具", nativeLabelsFor("zh-CN").DevTools)
+}
+
 func TestNewAppAPIToken(t *testing.T) {
 	first := NewApp()
 	second := NewApp()

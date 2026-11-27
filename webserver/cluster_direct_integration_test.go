@@ -102,7 +102,7 @@ func TestClusterDirectMode(t *testing.T) {
 
 	e := CreateEchoServerWithConfig(ServerConfig{
 		DisablePluginAuth: true,
-		Audience:          "server",
+		Audience:          AudienceServer,
 	})
 	server := httptest.NewServer(e)
 	defer server.Close()
@@ -182,7 +182,7 @@ func TestClusterDirectCreateAndEdit(t *testing.T) {
 
 	e := CreateEchoServerWithConfig(ServerConfig{
 		DisablePluginAuth: true,
-		Audience:          "server",
+		Audience:          AudienceServer,
 	})
 	server := httptest.NewServer(e)
 	defer server.Close()
@@ -265,7 +265,7 @@ func TestClusterDirectModeAuthFailure(t *testing.T) {
 
 	e := CreateEchoServerWithConfig(ServerConfig{
 		DisablePluginAuth: true,
-		Audience:          "server",
+		Audience:          AudienceServer,
 	})
 	server := httptest.NewServer(e)
 	defer server.Close()
@@ -315,7 +315,7 @@ func TestClusterDirectModeWithoutAuth(t *testing.T) {
 
 	e := CreateEchoServerWithConfig(ServerConfig{
 		DisablePluginAuth: true,
-		Audience:          "server",
+		Audience:          AudienceServer,
 	})
 	server := httptest.NewServer(e)
 	defer server.Close()

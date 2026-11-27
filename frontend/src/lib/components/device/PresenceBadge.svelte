@@ -3,6 +3,7 @@
   import { Eye } from "lucide-svelte";
   import AvatarStack from "$lib/components/AvatarStack.svelte";
   import type { Occupancy } from "$lib/api/schemas";
+  import { presenceLabelKey } from "./presence-label";
 
   let {
     occupancy,
@@ -15,12 +16,12 @@
   } = $props();
 
   const state = $derived(occupancy?.state ?? "free");
+  // null for own/free devices: the label is only a hint about states the user
+  // cannot control or that need attention.
+  const labelKey = $derived(presenceLabelKey(occupancy?.state));
 
   const tone = $derived.by(() => {
     switch (state) {
-      case "mine":
-      case "shared":
-        return "text-emerald-600 dark:text-emerald-400";
       case "viewing":
         return "text-sky-600 dark:text-sky-400";
       case "busy":
@@ -34,9 +35,6 @@
 
   const dotClass = $derived.by(() => {
     switch (state) {
-      case "mine":
-      case "shared":
-        return "bg-emerald-500";
       case "viewing":
         return "bg-sky-500";
       case "busy":
@@ -56,10 +54,10 @@
 <!-- isolate keeps the avatars' z-10 badge below the sticky actions column. -->
 <div class="flex shrink-0 items-center gap-2 min-w-0 isolate">
   {#if occupancy}
-    {#if !showStack || state === "mine" || state === "busy" || state === "preempted"}
+    {#if labelKey}
       <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-sm {tone}">
         <span class="size-2 rounded-full {dotClass}"></span>
-        {$t(`presence.state.${state}`)}
+        {$t(labelKey)}
       </span>
     {/if}
     {#if showStack}

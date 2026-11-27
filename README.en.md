@@ -103,7 +103,7 @@ When several people share one server, uiautodev can reuse the identity provided 
 - Observers can watch the screen, take screenshots and read the UI tree, but cannot control the device
 - Configure it under Settings → Access & Presence, or edit `config.json` directly
 
-See [docs/access-and-presence.md](docs/access-and-presence.md) for the full reference (configuration, permission matrix, oauth2-proxy example).
+The desktop app is a single-user client and always runs without device presence; its settings page hides the presence options. The feature only applies to a standalone server. See [docs/access-and-presence.md](docs/access-and-presence.md) for the full reference (configuration, permission matrix, oauth2-proxy example).
 
 ## MCP authentication
 

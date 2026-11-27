@@ -16,6 +16,10 @@
       "system": "System"
     },
     "language": "Language",
+    "width": {
+      "wide": "Switch to wide screen",
+      "narrow": "Switch to narrow screen"
+    },
     "feedback": "Feedback",
     "new": "NEW",
     "newVersionAvailable": "New version v{version} available",

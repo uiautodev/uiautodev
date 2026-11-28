@@ -66,14 +66,12 @@ backend_hash() {
 	Darwin | FreeBSD)
 		{
 			find "${ROOT}/cmd" "${ROOT}/webserver" "${ROOT}/version" -type f -name '*.go' -exec stat -f '%m %z %N' {} +
-			find "${ROOT}" -maxdepth 1 -type f -name '*.go' -exec stat -f '%m %z %N' {} +
 			stat -f '%m %z %N' "${ROOT}/go.mod" "${ROOT}/go.sum"
 		} | sort | cksum
 		;;
 	*)
 		{
 			find "${ROOT}/cmd" "${ROOT}/webserver" "${ROOT}/version" -type f -name '*.go' -exec stat -c '%Y %s %n' {} +
-			find "${ROOT}" -maxdepth 1 -type f -name '*.go' -exec stat -c '%Y %s %n' {} +
 			stat -c '%Y %s %n' "${ROOT}/go.mod" "${ROOT}/go.sum"
 		} | sort | cksum
 		;;

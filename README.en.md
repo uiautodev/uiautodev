@@ -21,7 +21,7 @@ The server can also be started directly with `npx uiautodev run`.
 
 | Directory | Description |
 |-----------|-------------|
-| Root | Desktop app and server source: `main.go`, `webserver/`, `cmd/`, `internal/`, `frontend/`, `build/` |
+| Root | Desktop app and server source: `desktop/` (desktop entry), `webserver/`, `cmd/`, `internal/`, `frontend/`, `build/` |
 | `npm/` | The `uiautodev` npm package that downloads and runs the server binary, i.e. `npx uiautodev run` |
 | `images/` | Documentation images |
 | `docs/` | Documentation assets, update notes and design documents |

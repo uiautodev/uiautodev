@@ -23,7 +23,7 @@
 
 | 目录 | 说明 |
 |------|------|
-| 根目录 | 桌面端与服务端源码：`main.go`、`webserver/`、`cmd/`、`internal/`、`frontend/`、`build/` |
+| 根目录 | 桌面端与服务端源码：`desktop/`（桌面端入口）、`webserver/`、`cmd/`、`internal/`、`frontend/`、`build/` |
 | `npm/` | `uiautodev` npm 包：下载并启动对应平台的服务端二进制，即 `npx uiautodev run` |
 | `images/` | 文档图片 |
 | `docs/` | 文档资源、更新说明与设计文档 |

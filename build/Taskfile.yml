@@ -37,7 +37,7 @@ tasks:
     generates:
       - frontend/bindings/**/*
     cmds:
-      - wails3 generate bindings -clean=true -ts -i
+      - wails3 generate bindings -clean=true -ts -i ./desktop
 
   generate:icons:
     summary: Generates Windows `.ico` and macOS `.icns` from build/appicon.png

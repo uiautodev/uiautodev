@@ -5,9 +5,14 @@
   import { LogOut } from "lucide-svelte";
   import { t } from "svelte-i18n";
   import UserAvatar from "$lib/components/UserAvatar.svelte";
+  import { isWailsEnv } from "$lib/compat.js";
   import { identityStore } from "$lib/stores/identity.svelte";
 
   let { compact = false }: { compact?: boolean } = $props();
+
+  // The desktop app is a single-user client: there is nobody to switch or sign
+  // out of, so the account menu and its /me request make no sense there.
+  const desktop = isWailsEnv();
 
   let menuOpen = $state(false);
 
@@ -29,11 +34,12 @@
   }
 
   onMount(() => {
+    if (desktop) return;
     void identityStore.ensure();
   });
 </script>
 
-{#if me}
+{#if !desktop && me}
   <Popover.Root bind:open={menuOpen}>
     <Popover.Trigger>
       {#snippet child({ props })}

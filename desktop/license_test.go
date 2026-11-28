@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -14,17 +15,22 @@ import (
 // packaging metadata generated from it.
 const mitCopyrightNotice = "Licensed under the MIT License."
 
+// repoFile resolves a repository-relative path from the desktop package directory.
+func repoFile(name string) string {
+	return filepath.Join("..", name)
+}
+
 // TestLicenseMetadata guards the MIT migration: the generated Info.plist and
 // info.json are rewritten from build/config.yml by update:build-assets, so a
 // stale config would quietly restore the old dual-license wording.
 func TestLicenseMetadata(t *testing.T) {
-	license, err := os.ReadFile("LICENSE")
+	license, err := os.ReadFile(repoFile("LICENSE"))
 	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(string(license), "MIT License"), "LICENSE must start with the MIT template")
 	assert.Contains(t, string(license), "Permission is hereby granted, free of charge")
 	assert.NotContains(t, strings.ToLower(string(license)), "commercial")
 
-	readme, err := os.ReadFile("README.md")
+	readme, err := os.ReadFile(repoFile("README.md"))
 	require.NoError(t, err)
 	assert.Contains(t, string(readme), "MIT License")
 	assert.NotContains(t, string(readme), "双授权")
@@ -32,12 +38,12 @@ func TestLicenseMetadata(t *testing.T) {
 	var pkg struct {
 		License string `json:"license"`
 	}
-	data, err := os.ReadFile("frontend/package.json")
+	data, err := os.ReadFile(repoFile("frontend/package.json"))
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(data, &pkg))
 	assert.Equal(t, "MIT", pkg.License)
 
-	layout, err := os.ReadFile("frontend/src/routes/+layout.svelte")
+	layout, err := os.ReadFile(repoFile("frontend/src/routes/+layout.svelte"))
 	require.NoError(t, err)
 	assert.Contains(t, string(layout), "&copy; 2026 UiautoDev")
 	assert.NotContains(t, string(layout), "All rights reserved")
@@ -48,7 +54,7 @@ func TestLicenseMetadata(t *testing.T) {
 		"build/darwin/Info.dev.plist",
 		"build/windows/info.json",
 	} {
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(repoFile(path))
 		require.NoError(t, err)
 		assert.Contains(t, string(data), mitCopyrightNotice, "%s must carry the MIT copyright notice", path)
 		assert.NotContains(t, string(data), "Free for personal", "%s still advertises the old dual license", path)

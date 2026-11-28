@@ -1,7 +1,6 @@
 package main
 
 import (
-	"embed"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -13,6 +12,7 @@ import (
 	"github.com/adrg/xdg"
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"github.com/uiautodev/uiautodev/frontend"
 	"github.com/uiautodev/uiautodev/webserver"
 
 	slogmulti "github.com/samber/slog-multi"
@@ -133,9 +133,6 @@ func initLogger(name string) {
 	slog.Info("Logger initialized", "name", name, "pid", os.Getpid())
 }
 
-//go:embed all:frontend/build
-var assets embed.FS
-
 func logPanic() {
 	if r := recover(); r != nil {
 		slog.Error("caught panic",
@@ -156,7 +153,7 @@ func main() {
 		Name:        "Uiautodev Desktop",
 		Description: "UIAutoDev desktop application",
 		Assets: application.AssetOptions{
-			Handler: application.AssetFileServerFS(assets),
+			Handler: application.AssetFileServerFS(frontend.Assets),
 		},
 		OnShutdown: app.shutdown,
 		Mac: application.MacOptions{

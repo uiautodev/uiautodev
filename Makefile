@@ -3,7 +3,7 @@
 # 优先使用已安装的 wails3，没有就用 go.mod 里锁定的版本临时运行
 WAILS3_VERSION := $(shell go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3 2>/dev/null)
 WAILS3 ?= $(shell command -v wails3 2>/dev/null || echo "go run github.com/wailsapp/wails/v3/cmd/wails3@$(WAILS3_VERSION)")
-BINDINGS_DIR := frontend/bindings/github.com/uiautodev
+BINDINGS_DIR := frontend/bindings/github.com/uiautodev/uiautodev/desktop
 
 # 新克隆项目后需要的全部准备：Go 模块、前端依赖、生成的代码与 wails bindings
 setup: prepare
@@ -41,7 +41,7 @@ gen: setup_frontend
 	$(MAKE) bindings
 
 bindings:
-	$(WAILS3) generate bindings -clean=true -ts -i
+	$(WAILS3) generate bindings -clean=true -ts -i ./desktop
 
 setup_frontend:
 	test -d frontend/build || (mkdir -p frontend/build && touch frontend/build/hello.txt)

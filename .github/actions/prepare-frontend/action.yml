@@ -52,7 +52,7 @@ runs:
       shell: bash
       env:
         CGO_ENABLED: "0"
-      run: wails3 generate bindings -clean=true -ts -i -f "-tags server"
+      run: wails3 generate bindings -clean=true -ts -i -f "-tags server" ./desktop
 
     - name: Build frontend
       shell: bash
